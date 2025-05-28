@@ -1,0 +1,167 @@
+// This is your Prisma schema file,
+// learn more about it in the docs: https://pris.ly/d/prisma-schema
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model User {
+  id          Int       @id @default(autoincrement())
+  email       String    @unique
+  password    String? // Nullable for OAuth users
+  name        String?
+  image       String?
+  role        Role      @default(USER)
+  dailyLimit  Int       @default(10)
+  usedToday   Int       @default(0)
+  resetDate   DateTime  @default(now()) @db.Date
+  isActive    Boolean   @default(true)
+  lastLoginAt DateTime?
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  // Relations
+  conversions Conversion[]
+  accounts    Account[]
+  sessions    Session[]
+
+  @@map("users")
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            Int
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       Int
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model Conversion {
+  id                Int              @id @default(autoincrement())
+  userId            Int?
+  jobId             String?          @unique // BullMQ job ID
+  fromFormat        String
+  toFormat          String
+  originalFilename  String?
+  convertedFilename String?
+  fileSize          Int?
+  outputFileSize    Int?
+  ipAddress         String?
+  userAgent         String?          @db.Text
+  status            ConversionStatus @default(PENDING)
+  progress          Int              @default(0)
+  errorMessage      String?          @db.Text
+  processingTime    Int? // in milliseconds
+  downloadUrl       String?
+  downloadCount     Int              @default(0)
+  expiresAt         DateTime?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  createdAt         DateTime         @default(now())
+
+  // Relations
+  user User? @relation(fields: [userId], references: [id])
+
+  @@index([userId])
+  @@index([createdAt])
+  @@index([status])
+  @@index([expiresAt])
+  @@index([jobId])
+  @@index([ipAddress])
+  @@map("conversions")
+}
+
+model Setting {
+  key         String   @id
+  value       String   @db.Text
+  description String?  @db.Text
+  category    String   @default("general")
+  isPublic    Boolean  @default(false)
+  updatedAt   DateTime @updatedAt
+  updatedBy   Int?
+
+  @@map("settings")
+}
+
+model RateLimit {
+  id            Int      @id @default(autoincrement())
+  identifier    String // IP address or user ID
+  type          String // 'ip' or 'user'
+  requestsCount Int      @default(0)
+  windowStart   DateTime
+  windowEnd     DateTime
+  isBlocked     Boolean  @default(false)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([identifier, type, windowStart])
+  @@index([windowEnd])
+  @@index([identifier, type])
+  @@map("rate_limits")
+}
+
+model SystemLog {
+  id        Int      @id @default(autoincrement())
+  level     LogLevel
+  message   String   @db.Text
+  meta      Json? // Additional metadata
+  source    String? // Service/module name
+  userId    Int?
+  ipAddress String?
+  userAgent String?  @db.Text
+  createdAt DateTime @default(now())
+
+  @@index([level])
+  @@index([createdAt])
+  @@index([source])
+  @@map("system_logs")
+}
+
+enum Role {
+  USER
+  PREMIUM
+  ADMIN
+}
+
+enum ConversionStatus {
+  PENDING
+  PROCESSING
+  COMPLETED
+  FAILED
+  EXPIRED
+  CANCELLED
+}
+
+enum LogLevel {
+  ERROR
+  WARN
+  INFO
+  DEBUG
+}
