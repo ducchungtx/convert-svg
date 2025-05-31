@@ -130,7 +130,7 @@ export default function DashboardLayout({
             <Button
               variant="ghost"
               size="sm"
-              className="w-full mt-3 justify-start"
+              className="w-full mt-3 justify-start text-gray-500 hover:text-gray-900"
               onClick={() => signOut({ callbackUrl: "/" })}
             >
               <LogOut className="mr-2 h-4 w-4" />
@@ -167,7 +167,16 @@ export default function DashboardLayout({
               <FileImage className="h-8 w-8 text-blue-600" />
               <span className="ml-2 text-lg font-bold text-gray-900">SVG Converter</span>
             </div>
-            <div className="w-6" />
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => signOut({ callbackUrl: "/" })}
+              className="text-gray-700 hover:text-gray-900 hover:bg-gray-100 border border-gray-300"
+            >
+              <LogOut className="h-4 w-4 mr-2" />
+              <span className="hidden sm:inline">Sign out</span>
+              <span className="sr-only sm:hidden">Sign out</span>
+            </Button>
           </div>
         </div>
 

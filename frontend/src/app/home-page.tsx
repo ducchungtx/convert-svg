@@ -46,7 +46,7 @@ export default function HomePage() {
               </Button>
             </Link>
             <Link href="/login">
-              <Button variant="outline" size="lg" className="px-8 py-3 border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300">
+              <Button variant="outline" size="lg" className="px-8 py-3 border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:!text-blue-500 font-semibold shadow-md hover:shadow-lg transition-all duration-300">
                 View Features
               </Button>
             </Link>

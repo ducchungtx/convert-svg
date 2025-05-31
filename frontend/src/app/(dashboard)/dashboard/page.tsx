@@ -294,7 +294,10 @@ export default function DashboardPage() {
             Upload and convert your SVG files to various formats.
           </p>
           <Link href="/dashboard/convert">
-            <Button variant="outline" className="w-full">
+            <Button
+              variant="outline"
+              className="w-full border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 hover:text-gray-900 font-medium"
+            >
               Start Converting
             </Button>
           </Link>
@@ -309,7 +312,10 @@ export default function DashboardPage() {
             Check your previous conversions and download files.
           </p>
           <Link href="/dashboard/history">
-            <Button variant="outline" className="w-full">
+            <Button
+              variant="outline"
+              className="w-full border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 hover:text-gray-900 font-medium"
+            >
               View History
             </Button>
           </Link>
@@ -323,7 +329,11 @@ export default function DashboardPage() {
           <p className="text-gray-600 mb-4">
             Track your usage patterns and conversion statistics.
           </p>
-          <Button variant="outline" className="w-full" disabled>
+          <Button
+            variant="outline"
+            className="w-full border border-gray-300 bg-gray-100 text-gray-600 font-medium cursor-not-allowed"
+            disabled
+          >
             Coming Soon
           </Button>
         </Card>
