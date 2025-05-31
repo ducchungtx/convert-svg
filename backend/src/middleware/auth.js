@@ -1,7 +1,7 @@
 const jwt = require('jsonwebtoken');
 const { PrismaClient } = require('@prisma/client');
 const logger = require('../utils/logger');
-const redis = require('../utils/redis');
+const { cache } = require('../utils/redis');
 
 const prisma = new PrismaClient();
 
@@ -22,7 +22,7 @@ const authenticateToken = async (req, res, next) => {
     }
 
     // Check if token is blacklisted
-    const blacklisted = await redis.get(`blacklist:${token}`);
+    const blacklisted = await cache.get(`blacklist:${token}`);
     if (blacklisted) {
       return res.status(401).json({
         success: false,
@@ -42,9 +42,9 @@ const authenticateToken = async (req, res, next) => {
         name: true,
         role: true,
         isActive: true,
-        dailyConversions: true,
+        usedToday: true,
         dailyLimit: true,
-        lastResetDate: true,
+        resetDate: true,
         createdAt: true
       }
     });
@@ -58,17 +58,17 @@ const authenticateToken = async (req, res, next) => {
 
     // Reset daily conversions if new day
     const today = new Date().toDateString();
-    const lastReset = user.lastResetDate ? user.lastResetDate.toDateString() : null;
+    const lastReset = user.resetDate ? user.resetDate.toDateString() : null;
 
     if (lastReset !== today) {
       await prisma.user.update({
         where: { id: user.id },
         data: {
-          dailyConversions: 0,
-          lastResetDate: new Date()
+          usedToday: 0,
+          resetDate: new Date()
         }
       });
-      user.dailyConversions = 0;
+      user.usedToday = 0;
     }
 
     req.user = user;

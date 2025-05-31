@@ -1,0 +1,29 @@
+# Crontab configuration cho File Conversion Backend
+# Cài đặt: crontab -e và copy nội dung này
+
+# Backup database hàng ngày lúc 2:00 AM
+0 2 * * * /www/wwwroot/yourdomain.com/backend/scripts/backup-db.sh
+
+# Cleanup files và logs hàng ngày lúc 1:00 AM
+0 1 * * * /www/wwwroot/yourdomain.com/backend/scripts/cleanup.sh
+
+# Health check mỗi 5 phút
+*/5 * * * * /www/wwwroot/yourdomain.com/backend/scripts/health-check.sh
+
+# PM2 save state mỗi giờ (backup PM2 configuration)
+0 * * * * pm2 save
+
+# Log rotation cho application logs hàng ngày
+0 0 * * * /usr/sbin/logrotate /www/wwwroot/yourdomain.com/backend/logrotate.conf
+
+# Restart PM2 processes hàng tuần (Sunday 3:00 AM) để tránh memory leaks
+0 3 * * 0 pm2 restart all
+
+# Kiểm tra và restart các services nếu cần (mỗi 30 phút)
+*/30 * * * * /www/wwwroot/yourdomain.com/backend/scripts/service-monitor.sh
+
+# Notes:
+# - Thay đổi đường dẫn theo thực tế của server
+# - Đảm bảo tất cả scripts có quyền execute: chmod +x scripts/*.sh
+# - Test scripts trước khi thêm vào crontab
+# - Kiểm tra crontab logs: tail -f /var/log/cron

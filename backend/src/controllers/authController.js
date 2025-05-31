@@ -3,7 +3,7 @@ const jwt = require('jsonwebtoken');
 const { validationResult } = require('express-validator');
 const { PrismaClient } = require('@prisma/client');
 const logger = require('../utils/logger');
-const redis = require('../utils/redis');
+const { cache } = require('../utils/redis');
 
 const prisma = new PrismaClient();
 
@@ -87,7 +87,7 @@ const register = async (req, res) => {
     const refreshToken = generateRefreshToken(user.id);
 
     // Store refresh token in Redis (expires in 30 days)
-    await redis.setex(`refresh:${user.id}`, 30 * 24 * 60 * 60, refreshToken);
+    await cache.set(`refresh:${user.id}`, refreshToken, 30 * 24 * 60 * 60);
 
     logger.info('User registered successfully', { userId: user.id, email });
 
@@ -156,7 +156,7 @@ const login = async (req, res) => {
     // Update last login
     await prisma.user.update({
       where: { id: user.id },
-      data: { lastLogin: new Date() }
+      data: { lastLoginAt: new Date() }
     });
 
     // Generate tokens
@@ -164,7 +164,7 @@ const login = async (req, res) => {
     const refreshToken = generateRefreshToken(user.id);
 
     // Store refresh token in Redis
-    await redis.setex(`refresh:${user.id}`, 30 * 24 * 60 * 60, refreshToken);
+    await cache.set(`refresh:${user.id}`, refreshToken, 30 * 24 * 60 * 60);
 
     // Prepare user data (exclude password)
     const userData = {
@@ -222,7 +222,7 @@ const refreshToken = async (req, res) => {
     }
 
     // Check if refresh token exists in Redis
-    const storedToken = await redis.get(`refresh:${decoded.userId}`);
+    const storedToken = await cache.get(`refresh:${decoded.userId}`);
     if (storedToken !== refreshToken) {
       return res.status(401).json({
         success: false,
@@ -254,7 +254,7 @@ const refreshToken = async (req, res) => {
     const newRefreshToken = generateRefreshToken(user.id);
 
     // Update refresh token in Redis
-    await redis.setex(`refresh:${user.id}`, 30 * 24 * 60 * 60, newRefreshToken);
+    await cache.set(`refresh:${user.id}`, newRefreshToken, 30 * 24 * 60 * 60);
 
     res.json({
       success: true,
@@ -295,11 +295,11 @@ const logout = async (req, res) => {
     const expiresIn = decoded.exp - Math.floor(Date.now() / 1000);
 
     if (expiresIn > 0) {
-      await redis.setex(`blacklist:${token}`, expiresIn, 'true');
+      await cache.set(`blacklist:${token}`, 'true', expiresIn);
     }
 
     // Remove refresh token
-    await redis.del(`refresh:${userId}`);
+    await cache.del(`refresh:${userId}`);
 
     logger.info('User logged out successfully', { userId });
 

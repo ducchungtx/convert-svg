@@ -21,6 +21,13 @@ const authRoutes = require('./src/routes/auth');
 const conversionRoutes = require('./src/routes/conversion');
 const adminRoutes = require('./src/routes/admin');
 
+// Swagger setup (conditionally imported)
+let swaggerUi, swaggerSpecs;
+if (process.env.ENABLE_SWAGGER === 'true') {
+  swaggerUi = require('swagger-ui-express');
+  swaggerSpecs = require('./src/config/swagger');
+}
+
 const app = express();
 const PORT = process.env.PORT || 3001;
 
@@ -70,6 +77,56 @@ app.use(rateLimitMiddleware);
 // Static files for uploads
 app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
 
+// Swagger Documentation (conditionally enabled)
+if (process.env.ENABLE_SWAGGER === 'true') {
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpecs, {
+    explorer: true,
+    swaggerOptions: {
+      docExpansion: 'none',
+      filter: true,
+      showRequestHeaders: true,
+      showCommonExtensions: true,
+      tagsSorter: 'alpha',
+      operationsSorter: 'alpha'
+    },
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'File Conversion API Documentation'
+  }));
+
+  // Swagger JSON endpoint
+  app.get('/api-docs.json', (req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpecs);
+  });
+
+  logger.info('📚 Swagger documentation enabled at /api-docs');
+}
+
+/**
+ * @swagger
+ * /api/health:
+ *   get:
+ *     summary: Health check endpoint
+ *     tags: [System]
+ *     description: Check if the API server is running and healthy
+ *     responses:
+ *       200:
+ *         description: Server is healthy
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 status:
+ *                   type: string
+ *                   example: OK
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 version:
+ *                   type: string
+ *                   example: 1.0.0
+ */
 // Health check
 app.get('/api/health', (req, res) => {
   res.json({
@@ -84,6 +141,46 @@ app.use('/api/auth', authRoutes);
 app.use('/api/conversion', conversionRoutes);
 app.use('/api/admin', adminRoutes);
 
+/**
+ * @swagger
+ * /:
+ *   get:
+ *     summary: API information endpoint
+ *     tags: [System]
+ *     description: Get basic information about the API
+ *     responses:
+ *       200:
+ *         description: API information
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 message:
+ *                   type: string
+ *                   example: File Conversion API Server
+ *                 version:
+ *                   type: string
+ *                   example: 1.0.0
+ *                 status:
+ *                   type: string
+ *                   example: running
+ *                 timestamp:
+ *                   type: string
+ *                   format: date-time
+ *                 endpoints:
+ *                   type: object
+ *                   properties:
+ *                     health:
+ *                       type: string
+ *                       example: /api/health
+ *                     auth:
+ *                       type: string
+ *                       example: /api/auth
+ *                     conversion:
+ *                       type: string
+ *                       example: /api/conversion
+ */
 // Root endpoint
 app.get('/', (req, res) => {
   res.json({
@@ -145,8 +242,13 @@ async function startServer() {
         logger.info('\n📋 Available endpoints:');
         logger.info(`   Health: http://localhost:${PORT}/api/health`);
         logger.info(`   Auth: http://localhost:${PORT}/api/auth`);
-        logger.info(`   Convert: http://localhost:${PORT}/api/convert`);
+        logger.info(`   Convert: http://localhost:${PORT}/api/conversion`);
         logger.info(`   Admin: http://localhost:${PORT}/api/admin`);
+
+        if (process.env.ENABLE_SWAGGER === 'true') {
+          logger.info(`   📚 Swagger Docs: http://localhost:${PORT}/api-docs`);
+          logger.info(`   📄 Swagger JSON: http://localhost:${PORT}/api-docs.json`);
+        }
       }
     });
 

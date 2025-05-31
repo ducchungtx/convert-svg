@@ -1,0 +1,77 @@
+services:
+  # MySQL Database cho Development
+  mysql-dev:
+    image: mysql:8.0
+    platform: linux/amd64
+    container_name: convert-mysql-dev
+    environment:
+      - MYSQL_ROOT_PASSWORD=root123
+      - MYSQL_DATABASE=convert_db
+      - MYSQL_USER=convert_user
+      - MYSQL_PASSWORD=dev_password
+    ports:
+      - "3306:3306"
+    volumes:
+      - mysql_dev_data:/var/lib/mysql
+      - ./backend/database/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
+    restart: unless-stopped
+    command: --default-authentication-plugin=mysql_native_password
+    networks:
+      - dev-network
+
+  # Redis cho Development
+  redis-dev:
+    image: redis:7-alpine
+    platform: linux/amd64
+    container_name: convert-redis-dev
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_dev_data:/data
+    restart: unless-stopped
+    command: redis-server --appendonly yes
+    networks:
+      - dev-network
+
+  # phpMyAdmin (optional, để quản lý database)
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    platform: linux/amd64
+    container_name: convert-phpmyadmin
+    environment:
+      - PMA_HOST=mysql-dev
+      - PMA_USER=root
+      - PMA_PASSWORD=root123
+      - PMA_ARBITRARY=1
+    ports:
+      - "8080:80"
+    depends_on:
+      - mysql-dev
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+  # Redis Commander (optional, để quản lý Redis)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    platform: linux/amd64
+    container_name: convert-redis-commander
+    environment:
+      - REDIS_HOSTS=local:redis-dev:6379
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis-dev
+    restart: unless-stopped
+    networks:
+      - dev-network
+
+volumes:
+  mysql_dev_data:
+    driver: local
+  redis_dev_data:
+    driver: local
+
+networks:
+  dev-network:
+    driver: bridge

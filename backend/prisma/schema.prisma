@@ -19,7 +19,7 @@ model User {
   role        Role      @default(USER)
   dailyLimit  Int       @default(10)
   usedToday   Int       @default(0)
-  resetDate   DateTime  @default(now()) @db.Date
+  resetDate   DateTime  @default(now())
   isActive    Boolean   @default(true)
   lastLoginAt DateTime?
   createdAt   DateTime  @default(now())
