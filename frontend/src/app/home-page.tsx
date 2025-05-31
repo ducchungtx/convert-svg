@@ -41,12 +41,12 @@ export default function HomePage() {
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
             <Link href="/register">
-              <Button size="lg" className="px-8">
+              <Button size="lg" className="px-8 py-3 bg-blue-600 hover:bg-blue-700 text-white font-semibold shadow-lg hover:shadow-xl transition-all duration-300">
                 Start Converting Free
               </Button>
             </Link>
             <Link href="/login">
-              <Button variant="outline" size="lg" className="px-8">
+              <Button variant="outline" size="lg" className="px-8 py-3 border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300">
                 View Features
               </Button>
             </Link>
@@ -64,7 +64,7 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <Upload className="h-12 w-12 text-blue-600 mb-4" />
-                <CardTitle>Fast & Easy</CardTitle>
+                <CardTitle className="text-gray-900">Fast & Easy</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
@@ -77,7 +77,7 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <Shield className="h-12 w-12 text-green-600 mb-4" />
-                <CardTitle>Secure & Private</CardTitle>
+                <CardTitle className="text-gray-900">Secure & Private</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
@@ -90,7 +90,7 @@ export default function HomePage() {
             <Card>
               <CardHeader>
                 <Users className="h-12 w-12 text-purple-600 mb-4" />
-                <CardTitle>Professional Quality</CardTitle>
+                <CardTitle className="text-gray-900">Professional Quality</CardTitle>
               </CardHeader>
               <CardContent>
                 <p className="text-gray-600">
@@ -113,7 +113,7 @@ export default function HomePage() {
             Join thousands of developers and designers who trust our conversion tool.
           </p>
           <Link href="/register">
-            <Button size="lg" variant="secondary" className="px-8">
+            <Button size="lg" className="px-8 py-3 bg-white text-blue-600 hover:bg-gray-50 font-semibold shadow-lg hover:shadow-xl transition-all duration-300 border-2 border-white hover:border-gray-200">
               {"Get Started Now - It's Free"}
             </Button>
           </Link>
