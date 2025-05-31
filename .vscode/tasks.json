@@ -1,0 +1,15 @@
+{
+	"version": "2.0.0",
+	"tasks": [
+		{
+			"command": "npx tsc --noEmit",
+			"group": "test",
+			"isBackground": false,
+			"label": "TypeScript Check",
+			"problemMatcher": [
+				"$tsc"
+			],
+			"type": "shell"
+		}
+	]
+}
