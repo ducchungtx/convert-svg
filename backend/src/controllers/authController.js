@@ -70,7 +70,7 @@ const register = async (req, res) => {
         name,
         role: 'USER',
         dailyLimit: 10, // Default limit for new users
-        lastResetDate: new Date()
+        resetDate: new Date()
       },
       select: {
         id: true,
@@ -321,7 +321,38 @@ const logout = async (req, res) => {
  */
 const getProfile = async (req, res) => {
   try {
-    const user = req.user;
+    const userId = req.user.id;
+
+    // Get user with subscription information
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        image: true,
+        role: true,
+        subscriptionType: true,
+        subscriptionStatus: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
+        dailyLimit: true,
+        monthlyLimit: true,
+        usedToday: true,
+        usedThisMonth: true,
+        isActive: true,
+        lastLoginAt: true,
+        createdAt: true,
+        updatedAt: true
+      }
+    });
+
+    if (!user) {
+      return res.status(404).json({
+        success: false,
+        message: 'User not found'
+      });
+    }
 
     // Get additional user stats
     const stats = await prisma.conversion.groupBy({
@@ -337,14 +368,46 @@ const getProfile = async (req, res) => {
     const userStats = {
       totalConversions: stats.reduce((acc, stat) => acc + stat._count.status, 0),
       completedConversions: stats.find(s => s.status === 'COMPLETED')?._count.status || 0,
-      failedConversions: stats.find(s => s.status === 'FAILED')?._count.status || 0
+      failedConversions: stats.find(s => s.status === 'FAILED')?._count.status || 0,
+      pendingConversions: stats.find(s => s.status === 'PENDING')?._count.status || 0,
+      processingConversions: stats.find(s => s.status === 'PROCESSING')?._count.status || 0
+    };
+
+    // Calculate subscription info
+    const subscriptionInfo = {
+      type: user.subscriptionType,
+      status: user.subscriptionStatus,
+      startDate: user.subscriptionStart,
+      endDate: user.subscriptionEnd,
+      daysRemaining: user.subscriptionEnd ?
+        Math.max(0, Math.ceil((new Date(user.subscriptionEnd) - new Date()) / (1000 * 60 * 60 * 24))) :
+        null,
+      isExpired: user.subscriptionEnd ? new Date(user.subscriptionEnd) < new Date() : false
+    };
+
+    // Calculate usage info
+    const usageInfo = {
+      daily: {
+        used: user.usedToday,
+        limit: user.dailyLimit,
+        remaining: Math.max(0, user.dailyLimit - user.usedToday),
+        percentage: user.dailyLimit > 0 ? Math.round((user.usedToday / user.dailyLimit) * 100) : 0
+      },
+      monthly: {
+        used: user.usedThisMonth,
+        limit: user.monthlyLimit,
+        remaining: Math.max(0, user.monthlyLimit - user.usedThisMonth),
+        percentage: user.monthlyLimit > 0 ? Math.round((user.usedThisMonth / user.monthlyLimit) * 100) : 0
+      }
     };
 
     res.json({
       success: true,
       data: {
         user,
-        stats: userStats
+        stats: userStats,
+        subscription: subscriptionInfo,
+        usage: usageInfo
       }
     });
   } catch (error) {
@@ -458,6 +521,186 @@ const changePassword = async (req, res) => {
   }
 };
 
+/**
+ * Update user subscription
+ */
+const updateSubscription = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { subscriptionType } = req.body;
+    const userId = req.user.id;
+
+    // Define subscription limits
+    const subscriptionLimits = {
+      FREE: { dailyLimit: 10, monthlyLimit: 100 },
+      BASIC: { dailyLimit: 50, monthlyLimit: 1000 },
+      PREMIUM: { dailyLimit: 200, monthlyLimit: 5000 },
+      ENTERPRISE: { dailyLimit: 1000, monthlyLimit: 25000 }
+    };
+
+    const limits = subscriptionLimits[subscriptionType];
+    if (!limits) {
+      return res.status(400).json({
+        success: false,
+        message: 'Invalid subscription type'
+      });
+    }
+
+    // Calculate subscription dates
+    const now = new Date();
+    const subscriptionEnd = new Date(now);
+    subscriptionEnd.setMonth(subscriptionEnd.getMonth() + 1); // 1 month subscription
+
+    const updatedUser = await prisma.user.update({
+      where: { id: userId },
+      data: {
+        subscriptionType,
+        subscriptionStatus: 'ACTIVE',
+        subscriptionStart: subscriptionType === 'FREE' ? null : now,
+        subscriptionEnd: subscriptionType === 'FREE' ? null : subscriptionEnd,
+        dailyLimit: limits.dailyLimit,
+        monthlyLimit: limits.monthlyLimit,
+        role: subscriptionType === 'FREE' ? 'USER' : 'PREMIUM'
+      },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        role: true,
+        subscriptionType: true,
+        subscriptionStatus: true,
+        subscriptionStart: true,
+        subscriptionEnd: true,
+        dailyLimit: true,
+        monthlyLimit: true
+      }
+    });
+
+    logger.info('User subscription updated', {
+      userId,
+      oldSubscription: req.user.subscriptionType,
+      newSubscription: subscriptionType
+    });
+
+    res.json({
+      success: true,
+      message: 'Subscription updated successfully',
+      data: { user: updatedUser }
+    });
+  } catch (error) {
+    logger.error('Update subscription error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update subscription'
+    });
+  }
+};
+
+/**
+ * Get subscription plans
+ */
+const getSubscriptionPlans = async (req, res) => {
+  try {
+    const plans = [
+      {
+        type: 'FREE',
+        name: 'Free Plan',
+        price: 0,
+        currency: 'USD',
+        period: 'month',
+        features: [
+          '10 conversions per day',
+          '100 conversions per month',
+          'Basic file formats',
+          'Email support'
+        ],
+        limits: {
+          dailyLimit: 10,
+          monthlyLimit: 100
+        }
+      },
+      {
+        type: 'BASIC',
+        name: 'Basic Plan',
+        price: 9.99,
+        currency: 'USD',
+        period: 'month',
+        features: [
+          '50 conversions per day',
+          '1,000 conversions per month',
+          'All file formats',
+          'Priority email support',
+          'Batch conversion'
+        ],
+        limits: {
+          dailyLimit: 50,
+          monthlyLimit: 1000
+        }
+      },
+      {
+        type: 'PREMIUM',
+        name: 'Premium Plan',
+        price: 19.99,
+        currency: 'USD',
+        period: 'month',
+        features: [
+          '200 conversions per day',
+          '5,000 conversions per month',
+          'All file formats',
+          'Priority support',
+          'Batch conversion',
+          'API access',
+          'Custom watermarks'
+        ],
+        limits: {
+          dailyLimit: 200,
+          monthlyLimit: 5000
+        }
+      },
+      {
+        type: 'ENTERPRISE',
+        name: 'Enterprise Plan',
+        price: 49.99,
+        currency: 'USD',
+        period: 'month',
+        features: [
+          '1,000 conversions per day',
+          '25,000 conversions per month',
+          'All file formats',
+          '24/7 support',
+          'Batch conversion',
+          'API access',
+          'Custom watermarks',
+          'White-label solution'
+        ],
+        limits: {
+          dailyLimit: 1000,
+          monthlyLimit: 25000
+        }
+      }
+    ];
+
+    res.json({
+      success: true,
+      data: { plans }
+    });
+  } catch (error) {
+    logger.error('Get subscription plans error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get subscription plans'
+    });
+  }
+};
+
 module.exports = {
   register,
   login,
@@ -465,5 +708,7 @@ module.exports = {
   logout,
   getProfile,
   updateProfile,
-  changePassword
+  changePassword,
+  updateSubscription,
+  getSubscriptionPlans
 };

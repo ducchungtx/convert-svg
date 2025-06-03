@@ -1,26 +1,32 @@
 "use client";
 
 import { useState, useEffect } from "react";
-import { useSession, signOut } from "next-auth/react";
+import { signOut } from "next-auth/react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { z } from "zod";
+import { toast } from "sonner";
 import {
   User,
   Lock,
   Save,
   Trash2,
-  Shield,
-  Calendar,
-  Settings,
-  Bell,
   Download,
-  FileImage
+  FileImage,
+  Bell,
+  Settings,
+  Activity,
+  CreditCard,
+  BarChart3,
+  AlertCircle,
+  CheckCircle,
+  Clock,
+  Loader2
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { toast } from "sonner";
+import { AuthService, UserService, type NotificationSettings } from "@/services";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -39,26 +45,68 @@ const passwordSchema = z.object({
 type ProfileFormData = z.infer<typeof profileSchema>;
 type PasswordFormData = z.infer<typeof passwordSchema>;
 
-interface UserStats {
-  totalConversions: number;
-  successfulConversions: number;
-  totalFileSize: number;
-  joinedDate: string;
-  lastActivity: string;
+// API Response interfaces - sử dụng local types cho consistency
+interface ApiUser {
+  id: number;
+  email: string;
+  name: string;
+  image: string | null;
+  role: string;
+  subscriptionType: string;
+  subscriptionStatus: string;
+  subscriptionStart: string | null;
+  subscriptionEnd: string | null;
+  dailyLimit: number;
+  monthlyLimit: number;
+  usedToday: number;
+  usedThisMonth: number;
+  isActive: boolean;
+  lastLoginAt: string;
+  createdAt: string;
+  updatedAt: string;
 }
 
-interface NotificationSettings {
-  emailNotifications: boolean;
-  conversionComplete: boolean;
-  weeklyReport: boolean;
-  securityAlerts: boolean;
+interface ProfileData {
+  user: ApiUser;
+  stats: {
+    totalConversions: number;
+    completedConversions: number;
+    failedConversions: number;
+    pendingConversions: number;
+    processingConversions: number;
+  };
+  subscription: {
+    type: string;
+    status: string;
+    startDate: string | null;
+    endDate: string | null;
+    daysRemaining: number | null;
+    isExpired: boolean;
+  };
+  usage: {
+    daily: {
+      used: number;
+      limit: number;
+      remaining: number;
+      percentage: number;
+    };
+    monthly: {
+      used: number;
+      limit: number;
+      remaining: number;
+      percentage: number;
+    };
+  };
 }
 
 export default function ProfilePage() {
-  const { data: session, update } = useSession();
+  // Remove useSession from this component since layout already provides it
+  // const { data: session, update, status } = useSession();
   const [loading, setLoading] = useState(false);
   const [activeTab, setActiveTab] = useState("profile");
-  const [stats, setStats] = useState<UserStats | null>(null);
+  const [profileData, setProfileData] = useState<ProfileData | null>(null);
+  const [fetchingData, setFetchingData] = useState(true);
+  const [hasInitialized, setHasInitialized] = useState(false);
   const [notifications, setNotifications] = useState<NotificationSettings>({
     emailNotifications: true,
     conversionComplete: true,
@@ -69,8 +117,8 @@ export default function ProfilePage() {
   const profileForm = useForm<ProfileFormData>({
     resolver: zodResolver(profileSchema),
     defaultValues: {
-      name: session?.user?.name || "",
-      email: session?.user?.email || "",
+      name: "",
+      email: "",
     },
   });
 
@@ -78,80 +126,109 @@ export default function ProfilePage() {
     resolver: zodResolver(passwordSchema),
   });
 
+  // Initial data fetch - only run once on mount
   useEffect(() => {
-    if (session?.user) {
+    // Only run if not already initialized
+    if (hasInitialized) {
+      return;
+    }
+
+    let isMounted = true;
+    setHasInitialized(true);
+
+    const initializeProfile = async () => {
+      try {
+        setFetchingData(true);
+        const data = await AuthService.getProfile();
+        if (isMounted) {
+          setProfileData(data);
+        }
+      } catch (error) {
+        if (isMounted) {
+          console.error('Error fetching profile data:', error);
+          toast.error('Failed to load profile data');
+        }
+      } finally {
+        if (isMounted) {
+          setFetchingData(false);
+        }
+      }
+    };
+
+    initializeProfile();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [hasInitialized]); // Remove status dependency
+
+  // Form initialization when profile data is ready
+  useEffect(() => {
+    if (profileData?.user && !fetchingData) {
+      // Initialize form with profile data
       profileForm.reset({
-        name: session.user.name || "",
-        email: session.user.email || "",
+        name: profileData.user.name,
+        email: profileData.user.email,
       });
     }
-  }, [session, profileForm]);
-
-  useEffect(() => {
-    // TODO: Fetch real user stats from API
-    setTimeout(() => {
-      setStats({
-        totalConversions: 42,
-        successfulConversions: 38,
-        totalFileSize: 1024 * 1024 * 15, // 15MB
-        joinedDate: "2024-01-15",
-        lastActivity: new Date().toISOString(),
-      });
-    }, 500);
-  }, []);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [profileData, fetchingData]); // Exclude profileForm to avoid circular dependency
 
   const onProfileSubmit = async (data: ProfileFormData) => {
     setLoading(true);
     try {
-      // TODO: Implement API call to update profile
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await AuthService.updateProfile({ name: data.name });
 
-      // Update the session
-      await update({
-        ...session,
-        user: {
-          ...session?.user,
-          name: data.name,
-          email: data.email,
-        },
-      });
+      // Update local state directly instead of session update
+      if (profileData) {
+        setProfileData({
+          ...profileData,
+          user: {
+            ...profileData.user,
+            name: data.name,
+          }
+        });
+      }
 
       toast.success("Profile updated successfully");
     } catch (error) {
       console.error("Profile update error:", error);
-      toast.error("Failed to update profile");
+      toast.error(error instanceof Error ? error.message : "Failed to update profile");
     } finally {
       setLoading(false);
     }
   };
 
-  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   const onPasswordSubmit = async (data: PasswordFormData) => {
     setLoading(true);
     try {
-      // TODO: Implement API call to change password
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await AuthService.changePassword({
+        currentPassword: data.currentPassword,
+        newPassword: data.newPassword,
+      });
 
       toast.success("Password changed successfully");
       passwordForm.reset();
     } catch (error) {
       console.error("Password change error:", error);
-      toast.error("Failed to change password");
+      toast.error(error instanceof Error ? error.message : "Failed to change password");
     } finally {
       setLoading(false);
     }
   };
 
   const handleNotificationChange = async (key: keyof NotificationSettings, value: boolean) => {
-    setNotifications((prev) => ({ ...prev, [key]: value }));
+    const newSettings = { ...notifications, [key]: value };
+    setNotifications(newSettings);
 
-    // TODO: Implement API call to save notification settings
     try {
-      await new Promise((resolve) => setTimeout(resolve, 500));
+      await UserService.updateNotificationSettings(newSettings);
       toast.success("Notification settings saved");
     } catch (error) {
       console.error("Notification settings error:", error);
-      toast.error("Failed to save settings");
+      toast.error(error instanceof Error ? error.message : "Failed to save settings");
+      // Revert on error
+      setNotifications(notifications);
     }
   };
 
@@ -162,14 +239,12 @@ export default function ProfilePage() {
 
     setLoading(true);
     try {
-      // TODO: Implement API call to delete account
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
+      await AuthService.deleteAccount();
       toast.success("Account deleted successfully");
       signOut({ callbackUrl: "/" });
     } catch (error) {
       console.error("Delete account error:", error);
-      toast.error("Failed to delete account");
+      toast.error(error instanceof Error ? error.message : "Failed to delete account");
     } finally {
       setLoading(false);
     }
@@ -177,45 +252,22 @@ export default function ProfilePage() {
 
   const exportData = async () => {
     try {
-      // TODO: Implement data export
-      await new Promise((resolve) => setTimeout(resolve, 1000));
-
-      // Create a mock export file
-      const data = {
-        profile: session?.user,
-        stats,
-        conversions: [], // TODO: Add real conversion data
-        exportDate: new Date().toISOString(),
-      };
-
-      const blob = new Blob([JSON.stringify(data, null, 2)], { type: "application/json" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement("a");
+      const blob = await AuthService.exportUserData();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
       a.href = url;
-      a.download = "svg-converter-data.json";
+      a.download = 'user-data.json';
+      document.body.appendChild(a);
       a.click();
-      URL.revokeObjectURL(url);
-
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
       toast.success("Data exported successfully");
     } catch (error) {
       console.error("Export data error:", error);
-      toast.error("Failed to export data");
+      toast.error(error instanceof Error ? error.message : "Failed to export data");
     }
   };
-
-  const formatFileSize = (bytes: number) => {
-    if (bytes === 0) return "0 Bytes";
-    const k = 1024;
-    const sizes = ["Bytes", "KB", "MB", "GB"];
-    const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
-
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleDateString();
-  };
-
-  const successRate = stats ? Math.round((stats.successfulConversions / stats.totalConversions) * 100) : 0;
 
   const tabs = [
     { id: "profile", label: "Profile", icon: User },
@@ -234,8 +286,18 @@ export default function ProfilePage() {
         </p>
       </div>
 
+      {/* Loading State */}
+      {fetchingData && (
+        <Card className="p-6">
+          <div className="flex items-center justify-center">
+            <Loader2 className="h-6 w-6 animate-spin mr-2" />
+            <span>Loading profile data...</span>
+          </div>
+        </Card>
+      )}
+
       {/* User Stats */}
-      {stats && (
+      {!fetchingData && profileData && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
           <Card className="p-6">
             <div className="flex items-center">
@@ -244,7 +306,7 @@ export default function ProfilePage() {
               </div>
               <div className="ml-4">
                 <p className="text-sm font-medium text-gray-600">Total Conversions</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalConversions}</p>
+                <p className="text-2xl font-bold text-gray-900">{profileData.stats.totalConversions}</p>
               </div>
             </div>
           </Card>
@@ -252,23 +314,11 @@ export default function ProfilePage() {
           <Card className="p-6">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
-                <Shield className="h-6 w-6 text-green-600" />
+                <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Success Rate</p>
-                <p className="text-2xl font-bold text-gray-900">{successRate}%</p>
-              </div>
-            </div>
-          </Card>
-
-          <Card className="p-6">
-            <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Download className="h-6 w-6 text-purple-600" />
-              </div>
-              <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Data</p>
-                <p className="text-2xl font-bold text-gray-900">{formatFileSize(stats.totalFileSize)}</p>
+                <p className="text-sm font-medium text-gray-600">Completed</p>
+                <p className="text-2xl font-bold text-gray-900">{profileData.stats.completedConversions}</p>
               </div>
             </div>
           </Card>
@@ -276,12 +326,78 @@ export default function ProfilePage() {
           <Card className="p-6">
             <div className="flex items-center">
               <div className="p-2 bg-yellow-100 rounded-lg">
-                <Calendar className="h-6 w-6 text-yellow-600" />
+                <Clock className="h-6 w-6 text-yellow-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Member Since</p>
-                <p className="text-2xl font-bold text-gray-900">{formatDate(stats.joinedDate)}</p>
+                <p className="text-sm font-medium text-gray-600">Processing</p>
+                <p className="text-2xl font-bold text-gray-900">{profileData.stats.processingConversions}</p>
               </div>
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center">
+              <div className="p-2 bg-red-100 rounded-lg">
+                <AlertCircle className="h-6 w-6 text-red-600" />
+              </div>
+              <div className="ml-4">
+                <p className="text-sm font-medium text-gray-600">Failed</p>
+                <p className="text-2xl font-bold text-gray-900">{profileData.stats.failedConversions}</p>
+              </div>
+            </div>
+          </Card>
+        </div>
+      )}
+
+      {/* Subscription Info */}
+      {!fetchingData && profileData && (
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <Card className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Subscription</p>
+                <p className="text-2xl font-bold text-gray-900">{profileData.subscription.type}</p>
+                <p className={`text-sm ${profileData.subscription.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'}`}>
+                  {profileData.subscription.status}
+                </p>
+              </div>
+              <CreditCard className="h-8 w-8 text-gray-400" />
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Daily Usage</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {profileData.usage.daily.used}/{profileData.usage.daily.limit}
+                </p>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div
+                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(profileData.usage.daily.percentage, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+              <BarChart3 className="h-8 w-8 text-gray-400" />
+            </div>
+          </Card>
+
+          <Card className="p-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-600">Monthly Usage</p>
+                <p className="text-2xl font-bold text-gray-900">
+                  {profileData.usage.monthly.used}/{profileData.usage.monthly.limit}
+                </p>
+                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                  <div
+                    className="bg-purple-600 h-2 rounded-full transition-all duration-300"
+                    style={{ width: `${Math.min(profileData.usage.monthly.percentage, 100)}%` }}
+                  ></div>
+                </div>
+              </div>
+              <Activity className="h-8 w-8 text-gray-400" />
             </div>
           </Card>
         </div>
@@ -298,8 +414,8 @@ export default function ProfilePage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.id
-                      ? "bg-blue-100 text-blue-700"
-                      : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "bg-blue-100 text-blue-700"
+                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
                     }`}
                 >
                   <Icon className="mr-3 h-5 w-5" />
@@ -353,7 +469,7 @@ export default function ProfilePage() {
                     Role
                   </label>
                   <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm text-gray-600">
-                    {session?.user?.role || "USER"}
+                    {profileData?.user?.role || "USER"}
                   </div>
                 </div>
 
@@ -437,12 +553,15 @@ export default function ProfilePage() {
                     <h3 className="text-sm font-medium text-gray-900">Email Notifications</h3>
                     <p className="text-sm text-gray-500">Receive notifications via email</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.emailNotifications}
-                    onChange={(e) => handleNotificationChange("emailNotifications", e.target.checked)}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifications.emailNotifications}
+                      onChange={(e) => handleNotificationChange("emailNotifications", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -450,12 +569,15 @@ export default function ProfilePage() {
                     <h3 className="text-sm font-medium text-gray-900">Conversion Complete</h3>
                     <p className="text-sm text-gray-500">Get notified when file conversions are complete</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.conversionComplete}
-                    onChange={(e) => handleNotificationChange("conversionComplete", e.target.checked)}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifications.conversionComplete}
+                      onChange={(e) => handleNotificationChange("conversionComplete", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -463,12 +585,15 @@ export default function ProfilePage() {
                     <h3 className="text-sm font-medium text-gray-900">Weekly Report</h3>
                     <p className="text-sm text-gray-500">Receive weekly usage reports</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.weeklyReport}
-                    onChange={(e) => handleNotificationChange("weeklyReport", e.target.checked)}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifications.weeklyReport}
+                      onChange={(e) => handleNotificationChange("weeklyReport", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
 
                 <div className="flex items-center justify-between">
@@ -476,12 +601,15 @@ export default function ProfilePage() {
                     <h3 className="text-sm font-medium text-gray-900">Security Alerts</h3>
                     <p className="text-sm text-gray-500">Get notified about security-related events</p>
                   </div>
-                  <input
-                    type="checkbox"
-                    checked={notifications.securityAlerts}
-                    onChange={(e) => handleNotificationChange("securityAlerts", e.target.checked)}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
-                  />
+                  <label className="relative inline-flex items-center cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={notifications.securityAlerts}
+                      onChange={(e) => handleNotificationChange("securityAlerts", e.target.checked)}
+                      className="sr-only peer"
+                    />
+                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
+                  </label>
                 </div>
               </div>
             </Card>

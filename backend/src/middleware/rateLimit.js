@@ -101,6 +101,11 @@ const rateLimiters = {
 // Custom conversion rate limiter with user-based limits
 const conversionRateLimit = async (req, res, next) => {
   try {
+    // Skip rate limiting in test and development environments
+    if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
+      return next();
+    }
+
     const ip = req.ip;
     const userId = req.user?.id;
     const userRole = req.user?.role;
@@ -185,8 +190,8 @@ const conversionRateLimit = async (req, res, next) => {
 
 // Middleware to apply appropriate rate limiter based on route
 const rateLimitMiddleware = (req, res, next) => {
-  // Skip rate limiting in test environment
-  if (process.env.NODE_ENV === 'test') {
+  // Skip rate limiting in test and development environments
+  if (process.env.NODE_ENV === 'test' || process.env.NODE_ENV === 'development') {
     return next();
   }
 

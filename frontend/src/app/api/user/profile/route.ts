@@ -12,11 +12,8 @@ export async function GET() {
       );
     }
 
-    // TODO: In a real application, you would:
-    // 1. Query the database for user profile and statistics
-    // 2. Calculate user-specific metrics
-
-    // Mock user stats
+    // For now, return mock data based on session user
+    // In production, you would integrate with the backend database
     const userStats = {
       totalConversions: 42,
       successfulConversions: 38,
@@ -42,15 +39,50 @@ export async function GET() {
       ],
     };
 
+    const subscriptionInfo = {
+      type: session.user.role === "ADMIN" ? "ENTERPRISE" : "FREE",
+      status: "ACTIVE",
+      name: session.user.role === "ADMIN" ? "Enterprise" : "Free",
+      features: session.user.role === "ADMIN"
+        ? ["Unlimited conversions", "Priority support", "API access", "Batch conversion"]
+        : ["10 conversions/day", "Basic support"],
+      limits: {
+        dailyLimit: session.user.role === "ADMIN" ? 1000 : 10,
+        monthlyLimit: session.user.role === "ADMIN" ? 25000 : 100,
+      }
+    };
+
+    const usageInfo = {
+      daily: {
+        used: 5,
+        limit: subscriptionInfo.limits.dailyLimit,
+        remaining: subscriptionInfo.limits.dailyLimit - 5,
+        percentage: Math.round((5 / subscriptionInfo.limits.dailyLimit) * 100),
+      },
+      monthly: {
+        used: 42,
+        limit: subscriptionInfo.limits.monthlyLimit,
+        remaining: subscriptionInfo.limits.monthlyLimit - 42,
+        percentage: Math.round((42 / subscriptionInfo.limits.monthlyLimit) * 100),
+      }
+    };
+
     return NextResponse.json({
+      success: true,
       user: {
         id: session.user.id,
         name: session.user.name,
         email: session.user.email,
         role: session.user.role,
         image: session.user.image,
+        subscriptionType: subscriptionInfo.type,
+        subscriptionStatus: subscriptionInfo.status,
+        isActive: true,
+        createdAt: "2024-01-15T00:00:00.000Z",
       },
       stats: userStats,
+      subscription: subscriptionInfo,
+      usage: usageInfo,
     });
 
   } catch (error) {

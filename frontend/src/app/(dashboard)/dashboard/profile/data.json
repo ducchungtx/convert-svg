@@ -1,0 +1,53 @@
+{
+  "success": true,
+  "data": {
+    "user": {
+      "id": 1,
+      "email": "zrmedia9@gmail.com",
+      "name": "Admin User",
+      "image": null,
+      "role": "ADMIN",
+      "subscriptionType": "FREE",
+      "subscriptionStatus": "ACTIVE",
+      "subscriptionStart": null,
+      "subscriptionEnd": null,
+      "dailyLimit": 9999,
+      "monthlyLimit": 100,
+      "usedToday": 0,
+      "usedThisMonth": 0,
+      "isActive": true,
+      "lastLoginAt": "2025-06-01T07:16:39.381Z",
+      "createdAt": "2025-05-30T13:05:19.567Z",
+      "updatedAt": "2025-06-01T07:17:05.877Z"
+    },
+    "stats": {
+      "totalConversions": 0,
+      "completedConversions": 0,
+      "failedConversions": 0,
+      "pendingConversions": 0,
+      "processingConversions": 0
+    },
+    "subscription": {
+      "type": "FREE",
+      "status": "ACTIVE",
+      "startDate": null,
+      "endDate": null,
+      "daysRemaining": null,
+      "isExpired": false
+    },
+    "usage": {
+      "daily": {
+        "used": 0,
+        "limit": 9999,
+        "remaining": 9999,
+        "percentage": 0
+      },
+      "monthly": {
+        "used": 0,
+        "limit": 100,
+        "remaining": 100,
+        "percentage": 0
+      }
+    }
+  }
+}

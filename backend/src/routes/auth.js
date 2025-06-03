@@ -22,11 +22,27 @@ const { authenticateToken } = require('../middleware/auth');
  *         role:
  *           type: string
  *           enum: [USER, PREMIUM, ADMIN]
+ *         subscriptionType:
+ *           type: string
+ *           enum: [FREE, BASIC, PREMIUM, ENTERPRISE]
+ *         subscriptionStatus:
+ *           type: string
+ *           enum: [ACTIVE, EXPIRED, CANCELLED, SUSPENDED]
+ *         subscriptionStart:
+ *           type: string
+ *           format: date-time
+ *         subscriptionEnd:
+ *           type: string
+ *           format: date-time
  *         isActive:
  *           type: boolean
  *         dailyLimit:
  *           type: integer
+ *         monthlyLimit:
+ *           type: integer
  *         usedToday:
+ *           type: integer
+ *         usedThisMonth:
  *           type: integer
  */
 
@@ -73,6 +89,12 @@ const changePasswordValidation = [
     .withMessage('New password must be at least 8 characters long')
     .matches(/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d)(?=.*[@$!%*?&])[A-Za-z\d@$!%*?&]/)
     .withMessage('New password must contain at least one uppercase letter, one lowercase letter, one number and one special character')
+];
+
+const updateSubscriptionValidation = [
+  body('subscriptionType')
+    .isIn(['FREE', 'BASIC', 'PREMIUM', 'ENTERPRISE'])
+    .withMessage('Invalid subscription type')
 ];
 
 /**
@@ -326,6 +348,108 @@ const changePasswordValidation = [
  *               $ref: '#/components/schemas/Error'
  */
 
+/**
+ * @swagger
+ * /api/auth/subscription/plans:
+ *   get:
+ *     summary: Get available subscription plans
+ *     tags: [Authentication]
+ *     responses:
+ *       200:
+ *         description: Subscription plans retrieved successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     plans:
+ *                       type: array
+ *                       items:
+ *                         type: object
+ *                         properties:
+ *                           type:
+ *                             type: string
+ *                             enum: [FREE, BASIC, PREMIUM, ENTERPRISE]
+ *                           name:
+ *                             type: string
+ *                           price:
+ *                             type: number
+ *                           currency:
+ *                             type: string
+ *                           period:
+ *                             type: string
+ *                           features:
+ *                             type: array
+ *                             items:
+ *                               type: string
+ *                           limits:
+ *                             type: object
+ *                             properties:
+ *                               dailyLimit:
+ *                                 type: integer
+ *                               monthlyLimit:
+ *                                 type: integer
+ */
+
+/**
+ * @swagger
+ * /api/auth/subscription:
+ *   put:
+ *     summary: Update user subscription
+ *     tags: [Authentication]
+ *     security:
+ *       - bearerAuth: []
+ *     requestBody:
+ *       required: true
+ *       content:
+ *         application/json:
+ *           schema:
+ *             type: object
+ *             properties:
+ *               subscriptionType:
+ *                 type: string
+ *                 enum: [FREE, BASIC, PREMIUM, ENTERPRISE]
+ *                 description: New subscription type
+ *             required:
+ *               - subscriptionType
+ *     responses:
+ *       200:
+ *         description: Subscription updated successfully
+ *         content:
+ *           application/json:
+ *             schema:
+ *               type: object
+ *               properties:
+ *                 success:
+ *                   type: boolean
+ *                   example: true
+ *                 message:
+ *                   type: string
+ *                 data:
+ *                   type: object
+ *                   properties:
+ *                     user:
+ *                       $ref: '#/components/schemas/User'
+ *       400:
+ *         description: Validation error
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ *       401:
+ *         description: Unauthorized
+ *         content:
+ *           application/json:
+ *             schema:
+ *               $ref: '#/components/schemas/Error'
+ */
+
 // Routes
 router.post('/register', registerValidation, authController.register);
 router.post('/login', loginValidation, authController.login);
@@ -335,5 +459,10 @@ router.post('/logout', authenticateToken, authController.logout);
 router.get('/profile', authenticateToken, authController.getProfile);
 router.put('/profile', authenticateToken, updateProfileValidation, authController.updateProfile);
 router.put('/password', authenticateToken, changePasswordValidation, authController.changePassword);
+router.put('/subscription', authenticateToken, updateSubscriptionValidation, authController.updateSubscription);
+
+// Subscription routes
+router.get('/subscription/plans', authController.getSubscriptionPlans);
+router.put('/subscription', authenticateToken, updateSubscriptionValidation, authController.updateSubscription);
 
 module.exports = router;

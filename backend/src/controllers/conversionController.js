@@ -6,6 +6,7 @@ const fs = require('fs').promises;
 const logger = require('../utils/logger');
 const { Queue } = require('bullmq');
 const redis = require('../utils/redis');
+const { checkAndUpdateUsage, canAccessFeature } = require('../utils/subscriptionHelper');
 
 const prisma = new PrismaClient();
 
@@ -78,17 +79,32 @@ const convertFile = async (req, res) => {
     const fileInfo = req.fileInfo;
     const user = req.user;
 
-    // Check daily conversion limit
-    if (user && user.dailyConversions >= user.dailyLimit) {
-      // Clean up uploaded file
-      await fs.unlink(fileInfo.tempPath).catch(err =>
-        logger.error('Failed to cleanup file:', err)
-      );
+    // Check subscription limits using the new subscription system
+    if (user) {
+      const usageCheck = await checkAndUpdateUsage(user.id, 'conversion');
+      if (!usageCheck.canUse) {
+        // Clean up uploaded file
+        await fs.unlink(fileInfo.tempPath).catch(err =>
+          logger.error('Failed to cleanup file:', err)
+        );
 
-      return res.status(429).json({
-        success: false,
-        message: `Daily conversion limit reached (${user.dailyLimit}). Please upgrade your account or try again tomorrow.`
-      });
+        return res.status(429).json({
+          success: false,
+          message: usageCheck.message
+        });
+      }
+    } else {
+      // For anonymous users, check if they can access conversion feature
+      if (!canAccessFeature('FREE', 'conversion')) {
+        await fs.unlink(fileInfo.tempPath).catch(err =>
+          logger.error('Failed to cleanup file:', err)
+        );
+
+        return res.status(401).json({
+          success: false,
+          message: 'Please sign up to access conversion features'
+        });
+      }
     }
 
     // Validate conversion
@@ -135,18 +151,6 @@ const convertFile = async (req, res) => {
       jobId: conversion.id,
       delay: 0
     });
-
-    // Update user's daily conversion count
-    if (user) {
-      await prisma.user.update({
-        where: { id: user.id },
-        data: {
-          dailyConversions: {
-            increment: 1
-          }
-        }
-      });
-    }
 
     logger.info('Conversion job queued', {
       conversionId: conversion.id,
