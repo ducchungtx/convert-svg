@@ -232,6 +232,10 @@ async function startServer() {
     await initializeRedis();
     logger.info('✅ Redis connected successfully');
 
+    // Start background worker
+    require('./src/jobs/worker');
+    logger.info('✅ Background worker started');
+
     // Start HTTP server
     const server = app.listen(PORT, () => {
       logger.info(`🚀 Server running on port ${PORT}`);

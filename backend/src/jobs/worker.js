@@ -47,9 +47,9 @@ const conversionWorker = new Worker('file-conversion', async (job) => {
       data: {
         status: 'COMPLETED',
         progress: 100,
-        outputPath: result.outputPath,
-        outputFilename: result.filename,
-        outputSize: result.size,
+        downloadUrl: result.outputPath,
+        convertedFilename: result.filename,
+        outputFileSize: result.size,
         completedAt: new Date()
       }
     });
@@ -59,15 +59,15 @@ const conversionWorker = new Worker('file-conversion', async (job) => {
 
     logger.info('Conversion completed successfully', {
       conversionId,
-      outputPath: result.outputPath,
-      outputSize: result.size
+      downloadUrl: result.outputPath,
+      outputFileSize: result.size
     });
 
     return {
       success: true,
       conversionId,
-      outputPath: result.outputPath,
-      outputSize: result.size
+      downloadUrl: result.outputPath,
+      outputFileSize: result.size
     };
 
   } catch (error) {

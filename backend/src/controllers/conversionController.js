@@ -128,12 +128,14 @@ const convertFile = async (req, res) => {
         fromFormat: sourceFormat,
         toFormat: targetFormat,
         fileSize: fileInfo.size,
-        status: 'PENDING'
+        status: 'PENDING',
+        ipAddress: req.ip || req.connection.remoteAddress || req.headers['x-forwarded-for']?.split(',')[0]?.trim(),
+        userAgent: req.headers['user-agent']
       }
     });
 
     // Add job to queue
-    await conversionQueue.add('convert-file', {
+    const job = await conversionQueue.add('convert-file', {
       conversionId: conversion.id,
       inputPath: fileInfo.tempPath,
       sourceFormat,
@@ -147,6 +149,14 @@ const convertFile = async (req, res) => {
     }, {
       jobId: conversion.id.toString(),
       delay: 0
+    });
+
+    // Update conversion record with jobId
+    await prisma.conversion.update({
+      where: { id: conversion.id },
+      data: {
+        jobId: job.id
+      }
     });
 
     logger.info('Conversion job queued', {
