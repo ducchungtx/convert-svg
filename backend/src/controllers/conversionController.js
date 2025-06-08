@@ -123,19 +123,12 @@ const convertFile = async (req, res) => {
     // Create conversion record
     const conversion = await prisma.conversion.create({
       data: {
-        id: uuidv4(),
         userId: user?.id,
         originalFilename: fileInfo.originalName,
-        sourceFormat,
-        targetFormat,
+        fromFormat: sourceFormat,
+        toFormat: targetFormat,
         fileSize: fileInfo.size,
-        status: 'PENDING',
-        settings: {
-          quality: quality ? parseInt(quality) : undefined,
-          width: width ? parseInt(width) : undefined,
-          height: height ? parseInt(height) : undefined
-        },
-        inputPath: fileInfo.tempPath
+        status: 'PENDING'
       }
     });
 
@@ -145,10 +138,14 @@ const convertFile = async (req, res) => {
       inputPath: fileInfo.tempPath,
       sourceFormat,
       targetFormat,
-      settings: conversion.settings,
+      settings: {
+        quality: quality ? parseInt(quality) : undefined,
+        width: width ? parseInt(width) : undefined,
+        height: height ? parseInt(height) : undefined
+      },
       userId: user?.id
     }, {
-      jobId: conversion.id,
+      jobId: conversion.id.toString(),
       delay: 0
     });
 
@@ -194,17 +191,17 @@ const getConversionStatus = async (req, res) => {
     const user = req.user;
 
     const conversion = await prisma.conversion.findUnique({
-      where: { id },
+      where: { id: parseInt(id) },
       select: {
         id: true,
         status: true,
         progress: true,
-        sourceFormat: true,
-        targetFormat: true,
+        fromFormat: true,
+        toFormat: true,
         originalFilename: true,
-        outputFilename: true,
+        convertedFilename: true,
         fileSize: true,
-        outputSize: true,
+        outputFileSize: true,
         createdAt: true,
         completedAt: true,
         errorMessage: true,
@@ -249,13 +246,13 @@ const downloadFile = async (req, res) => {
     const user = req.user;
 
     const conversion = await prisma.conversion.findUnique({
-      where: { id },
+      where: { id: parseInt(id) },
       select: {
         id: true,
         status: true,
-        outputPath: true,
-        outputFilename: true,
-        targetFormat: true,
+        downloadUrl: true,
+        convertedFilename: true,
+        toFormat: true,
         userId: true
       }
     });
@@ -282,7 +279,7 @@ const downloadFile = async (req, res) => {
       });
     }
 
-    if (!conversion.outputPath) {
+    if (!conversion.downloadUrl) {
       return res.status(404).json({
         success: false,
         message: 'Output file not found'
@@ -291,7 +288,7 @@ const downloadFile = async (req, res) => {
 
     // Check if file exists
     try {
-      await fs.access(conversion.outputPath);
+      await fs.access(conversion.downloadUrl);
     } catch {
       return res.status(404).json({
         success: false,
@@ -301,22 +298,21 @@ const downloadFile = async (req, res) => {
 
     // Update download count
     await prisma.conversion.update({
-      where: { id },
+      where: { id: parseInt(id) },
       data: {
         downloadCount: {
           increment: 1
-        },
-        lastDownloadAt: new Date()
+        }
       }
     });
 
     // Set appropriate headers
-    const filename = conversion.outputFilename || `converted.${conversion.targetFormat.toLowerCase()}`;
+    const filename = conversion.convertedFilename || `converted.${conversion.toFormat.toLowerCase()}`;
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
-    res.setHeader('Content-Type', getMimeTypeFromFormat(conversion.targetFormat));
+    res.setHeader('Content-Type', getMimeTypeFromFormat(conversion.toFormat));
 
     // Stream file
-    const fileStream = require('fs').createReadStream(conversion.outputPath);
+    const fileStream = require('fs').createReadStream(conversion.downloadUrl);
     fileStream.pipe(res);
 
     logger.info('File downloaded', { conversionId: id, userId: user?.id });
@@ -349,8 +345,8 @@ const getConversions = async (req, res) => {
 
     if (format) {
       where.OR = [
-        { sourceFormat: format.toUpperCase() },
-        { targetFormat: format.toUpperCase() }
+        { fromFormat: format.toUpperCase() },
+        { toFormat: format.toUpperCase() }
       ];
     }
 
@@ -407,12 +403,11 @@ const deleteConversion = async (req, res) => {
     const user = req.user;
 
     const conversion = await prisma.conversion.findUnique({
-      where: { id },
+      where: { id: parseInt(id) },
       select: {
         id: true,
         userId: true,
-        inputPath: true,
-        outputPath: true,
+        downloadUrl: true,
         status: true
       }
     });
@@ -434,25 +429,24 @@ const deleteConversion = async (req, res) => {
     // Cancel job if still processing
     if (conversion.status === 'PENDING' || conversion.status === 'PROCESSING') {
       try {
-        await conversionQueue.remove(id);
+        await conversionQueue.remove(id.toString());
       } catch (error) {
         logger.warn('Failed to remove job from queue:', error);
       }
     }
 
-    // Delete files
-    const filesToDelete = [conversion.inputPath, conversion.outputPath].filter(Boolean);
-    for (const filePath of filesToDelete) {
+    // Delete files if downloadUrl exists
+    if (conversion.downloadUrl) {
       try {
-        await fs.unlink(filePath);
+        await fs.unlink(conversion.downloadUrl);
       } catch (error) {
-        logger.warn(`Failed to delete file ${filePath}:`, error);
+        logger.warn(`Failed to delete file ${conversion.downloadUrl}:`, error);
       }
     }
 
     // Delete conversion record
     await prisma.conversion.delete({
-      where: { id }
+      where: { id: parseInt(id) }
     });
 
     logger.info('Conversion deleted', { conversionId: id, userId: user.id });

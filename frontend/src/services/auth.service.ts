@@ -112,8 +112,18 @@ export class AuthService {
 
   private static async fetchProfile(): Promise<ProfileData> {
     try {
+      console.log('Fetching profile data...');
       const response = await api.get('/auth/profile');
-      return response.data.data;
+      console.log('Profile response:', response.data);
+
+      // Backend returns { success: true, data: {...} }
+      // So we need to access response.data.data
+      if (response.data && response.data.success && response.data.data) {
+        return response.data.data;
+      } else {
+        console.error('Invalid response structure:', response.data);
+        throw new Error('Invalid response structure from server');
+      }
     } catch (error) {
       console.error('Error fetching profile:', error);
       throw new Error('Failed to fetch profile data');

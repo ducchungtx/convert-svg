@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback, useRef } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import { useSession } from "next-auth/react";
 import {
   Download,
@@ -14,7 +14,7 @@ import {
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
-import { ConversionService } from "@/services/conversion.service";
+import { PageLoader } from "@/components/ui/page-loader";
 
 interface Conversion {
   id: string;
@@ -47,299 +47,118 @@ const FORMAT_OPTIONS = [
 ];
 
 export default function HistoryPage() {
-  // Get session data to debug authentication
-  const { data: session, status } = useSession();
+  const { data: session } = useSession();
 
   const [conversions, setConversions] = useState<Conversion[]>([]);
   const [filteredConversions, setFilteredConversions] = useState<Conversion[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [searchTerm, setSearchTerm] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [formatFilter, setFormatFilter] = useState("all");
   const [dateFilter, setDateFilter] = useState("all");
   const [currentPage, setCurrentPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [deleteConfirm, setDeleteConfirm] = useState<{
+    isOpen: boolean;
+    conversionId: string;
+    conversionName: string;
+  }>({
+    isOpen: false,
+    conversionId: "",
+    conversionName: "",
+  });
+  const [downloadingFiles, setDownloadingFiles] = useState<Set<string>>(new Set());
+  const [downloadingAll, setDownloadingAll] = useState(false);
+  const [notification, setNotification] = useState<{
+    show: boolean;
+    message: string;
+    type: "success" | "error";
+  }>({
+    show: false,
+    message: "",
+    type: "success",
+  });
 
-  // Debug session on mount
-  useEffect(() => {
-    console.log('Session status:', status);
-    console.log('Session data:', session);
-  }, [session, status]);
-
-  // Define an interface for the API response outside of useEffect
-  interface ApiConversion {
-    id: number | string;
-    status: string;
-    progress: number;
-    fromFormat: string;
-    toFormat: string;
-    originalFilename: string;
-    fileSize: number;
-    outputFileSize?: number;
-    createdAt: string;
-    completedAt?: string;
-    downloadCount: number;
-    errorMessage?: string;
-  }
-
-  // State for tracking errors
-  const [error, setError] = useState<string | null>(null);
-  const isLoading = useRef(false);
-
-  // Debug log
-  console.log('HistoryPage component rendered', { loading, conversions: conversions.length });
-
-  // Tránh re-render không cần thiết và hạn chế gọi API liên tục
-  const fetchConversions = useCallback(async (page: number) => {
-    console.log('fetchConversions called with page:', page, 'isLoading.current:', isLoading.current);
-
-    // Avoid multiple concurrent requests
-    if (isLoading.current) {
-      console.log('Skipping fetch due to loading state');
-      return;
-    }
+  // Fetch conversions from the API
+  const fetchConversions = useCallback(async (page: number = 1) => {
+    if (!session) return;
 
     try {
-      isLoading.current = true;
       setLoading(true);
       setError(null);
 
-      console.log('Starting API call to getConversionHistory...');
-
-      // Sử dụng ConversionService với retry logic và caching
-      const response = await ConversionService.getConversionHistory(page, 20);
-
-      console.log('API response received:', response);
-
-      // Map the API response to our component's conversion format
-      const mappedConversions = response.conversions.map((item: ApiConversion) => {
-        // Convert the API structure to match our component structure
-        return {
-          id: item.id.toString(),
-          originalName: item.originalFilename || "Untitled",
-          targetFormat: (item.toFormat || '').toLowerCase(),
-          status: item.status as "COMPLETED" | "PROCESSING" | "FAILED" | "PENDING",
-          createdAt: item.createdAt,
-          completedAt: item.completedAt,
-          fileSize: item.fileSize || 0,
-          outputSize: item.outputFileSize,
-          downloadUrl: item.status === "COMPLETED" ? `/api/conversion/download/${item.id}` : undefined,
-          error: item.status === "FAILED" ? item.errorMessage || "Conversion failed" : undefined
-        };
+      const params = new URLSearchParams({
+        page: page.toString(),
+        limit: "10",
+        ...(statusFilter !== "all" && { status: statusFilter }),
+        ...(formatFilter !== "all" && { format: formatFilter }),
       });
 
-      setConversions(mappedConversions);
-      setFilteredConversions(mappedConversions);
-      setTotalPages(response.pagination.totalPages);
-
-      console.log('Data successfully set:', {
-        conversionsCount: mappedConversions.length,
-        totalPages: response.pagination.totalPages
+      const response = await fetch(`/api/conversion/history?${params}`, {
+        method: "GET",
+        headers: {
+          "Content-Type": "application/json",
+        },
       });
+
+      if (!response.ok) {
+        throw new Error(`Failed to fetch conversions: ${response.statusText}`);
+      }
+
+      const data = await response.json();
+      setConversions(data.conversions || []);
+      setTotalPages(data.pagination?.pages || 1);
     } catch (err: unknown) {
       console.error("Failed to fetch conversion history:", err);
       setError(err instanceof Error ? err.message : "Failed to load conversion history");
+      setConversions([]);
     } finally {
-      console.log('fetchConversions finally block');
       setLoading(false);
-      isLoading.current = false;
     }
-  }, []);
+  }, [session, statusFilter, formatFilter]);
 
-  // Debug: Log when component mounts
+  // Initial fetch and when filters change
   useEffect(() => {
-    console.log('HistoryPage mounted, initial fetch should happen');
-    console.log('Session info:', {
-      status,
-      hasSession: !!session,
-      hasAccessToken: !!session?.accessToken,
-      accessTokenPreview: session?.accessToken?.substring(0, 20) + '...'
-    });
-
-    // Check session status
-    console.log('Checking authentication status...');
-
-    return () => {
-      console.log('HistoryPage unmounting');
-    };
-  }, [session, status]);
-
-  // Add a test function to bypass authentication for debugging
-  const testFetchWithoutAuth = useCallback(async () => {
-    console.log('Testing API call without authentication...');
-    try {
-      const response = await fetch('http://localhost:3001/api/conversion/history?page=1&limit=10', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          // Remove Authorization header for testing
-        },
-      });
-
-      console.log('Test fetch response status:', response.status);
-      console.log('Test fetch response headers:', response.headers);
-
-      const data = await response.text();
-      console.log('Test fetch response body:', data);
-    } catch (error) {
-      console.error('Test fetch error:', error);
-    }
-  }, []);
-
-  // Add test button (temporary for debugging)
-  const handleTestFetch = () => {
-    testFetchWithoutAuth();
-  };
-
-  // Debug state for manual testing
-  const [manualToken, setManualToken] = useState("");
-  const [showTokenInput, setShowTokenInput] = useState(false);
-
-  // Test function with manual token
-  const testWithManualToken = useCallback(async () => {
-    if (!manualToken.trim()) {
-      alert("Please enter a token first");
-      return;
-    }
-
-    console.log('Testing with manual token:', manualToken.substring(0, 20) + '...');
-
-    try {
-      const response = await fetch('http://localhost:3001/api/conversion/history?page=1&limit=10', {
-        method: 'GET',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${manualToken}`,
-        },
-      });
-
-      console.log('Manual token test response status:', response.status);
-
-      if (response.ok) {
-        const data = await response.json();
-        console.log('Manual token test response:', data);
-
-        if (data.success && data.data && data.data.conversions) {
-          // Transform the data to match our format
-          const mappedConversions = data.data.conversions.map((item: ApiConversion) => ({
-            id: item.id.toString(),
-            originalName: item.originalFilename || "Untitled",
-            targetFormat: (item.toFormat || '').toLowerCase(),
-            status: item.status as "COMPLETED" | "PROCESSING" | "FAILED" | "PENDING",
-            createdAt: item.createdAt,
-            completedAt: item.completedAt,
-            fileSize: item.fileSize || 0,
-            outputSize: item.outputFileSize,
-            downloadUrl: item.status === "COMPLETED" ? `/api/conversion/download/${item.id}` : undefined,
-            error: item.status === "FAILED" ? item.errorMessage || "Conversion failed" : undefined
-          }));
-
-          setConversions(mappedConversions);
-          setFilteredConversions(mappedConversions);
-          setTotalPages(data.data.pagination.totalPages);
-          setError(null);
-          alert('✅ Manual token test successful! Check console and history list.');
-        }
-      } else {
-        const errorData = await response.text();
-        console.error('Manual token test failed:', response.status, errorData);
-        alert(`❌ Manual token test failed: ${response.status} - ${errorData}`);
-      }
-    } catch (error) {
-      console.error('Manual token test error:', error);
-      alert(`❌ Manual token test error: ${error}`);
-    }
-  }, [manualToken]);
-
-  useEffect(() => {
-    console.log('useEffect for currentPage triggered:', {
-      currentPage,
-      status,
-      hasSession: !!session,
-      hasAccessToken: !!session?.accessToken
-    });
-
-    // Only fetch when session is authenticated
-    if (status === 'authenticated' && session) {
-      console.log('Session is authenticated, will start fetch with debounce');
-      // Thêm 500ms debounce để tránh nhiều request liên tiếp
-      // và cải thiện trải nghiệm người dùng khi nhấn nút phân trang liên tiếp
-      const timer = setTimeout(() => {
-        console.log('Debounced timer calling fetchConversions');
-        fetchConversions(currentPage);
-      }, 500);
-
-      return () => {
-        console.log('Cleaning up timer');
-        clearTimeout(timer);
-      };
-    } else if (status === 'unauthenticated') {
-      console.log('Session is unauthenticated, setting error');
-      setError('Please log in to view conversion history');
-      setLoading(false);
-    } else {
-      console.log('Session is loading, waiting...');
-    }
-  }, [currentPage, fetchConversions, session, status]);
-
-  // Tải lại dữ liệu khi quay lại tab (để cập nhật dữ liệu mới)
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        fetchConversions(currentPage);
-      }
-    };
-
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+    fetchConversions(currentPage);
   }, [currentPage, fetchConversions]);
 
+  // Apply client-side filters for search and date
   useEffect(() => {
     let filtered = conversions;
 
     // Search filter
     if (searchTerm) {
-      filtered = filtered.filter((conversion) =>
+      filtered = filtered.filter(conversion =>
         conversion.originalName.toLowerCase().includes(searchTerm.toLowerCase())
       );
-    }
-
-    // Status filter
-    if (statusFilter !== "all") {
-      filtered = filtered.filter((conversion) => conversion.status === statusFilter);
-    }
-
-    // Format filter
-    if (formatFilter !== "all") {
-      filtered = filtered.filter((conversion) => conversion.targetFormat === formatFilter);
     }
 
     // Date filter
     if (dateFilter !== "all") {
       const now = new Date();
-      const filterDate = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
 
-      switch (dateFilter) {
-        case "today":
-          filterDate.setHours(0, 0, 0, 0);
-          break;
-        case "week":
-          filterDate.setDate(now.getDate() - 7);
-          break;
-        case "month":
-          filterDate.setMonth(now.getMonth() - 1);
-          break;
-      }
+      filtered = filtered.filter(conversion => {
+        const createdDate = new Date(conversion.createdAt);
 
-      if (dateFilter !== "all") {
-        filtered = filtered.filter((conversion) =>
-          new Date(conversion.createdAt) >= filterDate
-        );
-      }
+        switch (dateFilter) {
+          case "today":
+            return createdDate >= today;
+          case "week":
+            const weekAgo = new Date(today.getTime() - 7 * 24 * 60 * 60 * 1000);
+            return createdDate >= weekAgo;
+          case "month":
+            const monthAgo = new Date(today.getTime() - 30 * 24 * 60 * 60 * 1000);
+            return createdDate >= monthAgo;
+          default:
+            return true;
+        }
+      });
     }
 
     setFilteredConversions(filtered);
-  }, [conversions, searchTerm, statusFilter, formatFilter, dateFilter]);
+  }, [conversions, searchTerm, dateFilter]);
 
   const formatFileSize = (bytes: number) => {
     if (bytes === 0) return "0 Bytes";
@@ -354,7 +173,7 @@ export default function HistoryPage() {
     const now = new Date();
     const diffInSeconds = Math.floor((now.getTime() - date.getTime()) / 1000);
 
-    if (diffInSeconds < 60) return "Just now";
+    if (diffInSeconds < 60) return `${diffInSeconds}s ago`;
     if (diffInSeconds < 3600) return `${Math.floor(diffInSeconds / 60)}m ago`;
     if (diffInSeconds < 86400) return `${Math.floor(diffInSeconds / 3600)}h ago`;
     return `${Math.floor(diffInSeconds / 86400)}d ago`;
@@ -363,15 +182,13 @@ export default function HistoryPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "COMPLETED":
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-green-600 dark:text-green-500" />;
       case "PROCESSING":
-        return <Clock className="h-5 w-5 text-yellow-500 animate-spin" />;
-      case "PENDING":
-        return <Clock className="h-5 w-5 text-blue-500" />;
+        return <Clock className="h-5 w-5 text-orange-500 dark:text-orange-400" />;
       case "FAILED":
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
+        return <AlertCircle className="h-5 w-5 text-red-600 dark:text-red-500" />;
       default:
-        return <Clock className="h-5 w-5 text-gray-500" />;
+        return <Clock className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -381,85 +198,129 @@ export default function HistoryPage() {
         return "Completed";
       case "PROCESSING":
         return "Processing";
-      case "PENDING":
-        return "Pending";
       case "FAILED":
         return "Failed";
       default:
-        return "Unknown";
+        return "Pending";
     }
   };
 
+  // Show notification helper
+  const showNotification = (message: string, type: "success" | "error") => {
+    setNotification({ show: true, message, type });
+    setTimeout(() => {
+      setNotification({ show: false, message: "", type: "success" });
+    }, 3000);
+  };
+
   const downloadFile = async (conversion: Conversion) => {
-    if (conversion.status !== "COMPLETED") return;
+    if (conversion.status !== "COMPLETED" || !conversion.downloadUrl) return;
 
     try {
-      // Sử dụng ConversionService thay vì gọi API trực tiếp
-      const blob = await ConversionService.downloadFile(conversion.id);
+      setDownloadingFiles(prev => new Set([...prev, conversion.id]));
 
-      // Create a URL for the blob
+      const response = await fetch(conversion.downloadUrl);
+      if (!response.ok) throw new Error("Download failed");
+
+      const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
-
-      // Create an anchor element and click it
-      const a = document.createElement('a');
-      a.style.display = 'none';
+      const a = document.createElement("a");
+      a.style.display = "none";
       a.href = url;
-      a.download = conversion.originalName.replace(/\.[^/.]+$/, '') + '.' + conversion.targetFormat;
+      a.download = `${conversion.originalName.replace(/\.[^/.]+$/, "")}.${conversion.targetFormat}`;
       document.body.appendChild(a);
       a.click();
-
-      // Clean up
       window.URL.revokeObjectURL(url);
       document.body.removeChild(a);
+
+      showNotification(`Downloaded ${conversion.originalName} successfully`, "success");
     } catch (error) {
-      console.error("Failed to download file:", error);
+      console.error("Download failed:", error);
+      showNotification(`Failed to download ${conversion.originalName}`, "error");
+    } finally {
+      setDownloadingFiles(prev => {
+        const newSet = new Set(prev);
+        newSet.delete(conversion.id);
+        return newSet;
+      });
     }
   };
 
   const deleteConversion = async (id: string) => {
     try {
-      // Sử dụng ConversionService thay vì gọi API trực tiếp
-      await ConversionService.deleteConversion(id);
-
-      // Cập nhật trạng thái local sau khi xóa thành công
-      setConversions((prev) => prev.filter((c) => c.id !== id));
-      setFilteredConversions((prev) => prev.filter((c) => c.id !== id));
-
-      // Xóa cache liên quan đến history
-      Object.keys(sessionStorage).forEach(key => {
-        if (key.startsWith('conversion_history_')) {
-          sessionStorage.removeItem(key);
-        }
+      const response = await fetch(`/api/conversion`, {
+        method: "DELETE",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ id }),
       });
+
+      if (!response.ok) throw new Error("Delete failed");
+
+      // Close confirmation dialog
+      setDeleteConfirm({ isOpen: false, conversionId: "", conversionName: "" });
+
+      // Refresh the list
+      fetchConversions(currentPage);
     } catch (error) {
       console.error("Failed to delete conversion:", error);
     }
   };
 
-  const downloadAll = () => {
+  const handleDeleteClick = (conversion: Conversion) => {
+    setDeleteConfirm({
+      isOpen: true,
+      conversionId: conversion.id,
+      conversionName: conversion.originalName,
+    });
+  };
+
+  const confirmDelete = () => {
+    if (deleteConfirm.conversionId) {
+      deleteConversion(deleteConfirm.conversionId);
+    }
+  };
+
+  const cancelDelete = () => {
+    setDeleteConfirm({ isOpen: false, conversionId: "", conversionName: "" });
+  };
+
+  const downloadAll = async () => {
     const completedConversions = filteredConversions.filter(
       (c) => c.status === "COMPLETED" && c.downloadUrl
     );
 
-    completedConversions.forEach((conversion) => {
-      downloadFile(conversion);
-    });
+    setDownloadingAll(true);
+    let successCount = 0;
+    let errorCount = 0;
+
+    try {
+      for (const conversion of completedConversions) {
+        try {
+          await downloadFile(conversion);
+          successCount++;
+        } catch {
+          errorCount++;
+        }
+        // Add small delay between downloads
+        await new Promise(resolve => setTimeout(resolve, 500));
+      }
+
+      if (errorCount === 0) {
+        showNotification(`Successfully downloaded all ${successCount} files`, "success");
+      } else if (successCount > 0) {
+        showNotification(`Downloaded ${successCount} files, ${errorCount} failed`, "error");
+      } else {
+        showNotification(`Failed to download all files`, "error");
+      }
+    } finally {
+      setDownloadingAll(false);
+    }
   };
 
   if (loading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="h-12 bg-gray-200 rounded"></div>
-          <div className="space-y-4">
-            {[1, 2, 3, 4, 5].map((i) => (
-              <div key={i} className="h-20 bg-gray-200 rounded-lg"></div>
-            ))}
-          </div>
-        </div>
-      </div>
-    );
+    return <PageLoader variant="list" />;
   }
 
   const completedConversions = filteredConversions.filter((c) => c.status === "COMPLETED");
@@ -469,44 +330,44 @@ export default function HistoryPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Conversion History</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-bold text-foreground">Conversion History</h1>
+          <p className="text-muted-foreground">
             View and manage your file conversion history.
           </p>
         </div>
         {completedConversions.length > 0 && (
-          <Button onClick={downloadAll}>
+          <Button onClick={downloadAll} disabled={downloadingAll}>
             <Download className="mr-2 h-4 w-4" />
-            Download All ({completedConversions.length})
+            {downloadingAll ? "Downloading..." : `Download All (${completedConversions.length})`}
           </Button>
         )}
       </div>
 
       {/* Filters */}
-      <Card className="p-6">
+      <Card className="p-6 bg-card border-border">
         <div className="space-y-4">
           {/* Search */}
           <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
             <Input
               type="text"
               placeholder="Search conversions..."
               value={searchTerm}
               onChange={(e) => setSearchTerm(e.target.value)}
-              className="pl-10"
+              className="pl-10 bg-background border-border text-foreground placeholder-muted-foreground"
             />
           </div>
 
           {/* Filter Options */}
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Status
               </label>
               <select
                 value={statusFilter}
                 onChange={(e) => setStatusFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-background text-foreground"
               >
                 {FILTER_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -517,13 +378,13 @@ export default function HistoryPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Format
               </label>
               <select
                 value={formatFilter}
                 onChange={(e) => setFormatFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-background text-foreground"
               >
                 {FORMAT_OPTIONS.map((option) => (
                   <option key={option.value} value={option.value}>
@@ -534,13 +395,13 @@ export default function HistoryPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">
+              <label className="block text-sm font-medium text-foreground mb-2">
                 Date Range
               </label>
               <select
                 value={dateFilter}
                 onChange={(e) => setDateFilter(e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-background text-foreground"
               >
                 <option value="all">All Time</option>
                 <option value="today">Today</option>
@@ -553,81 +414,34 @@ export default function HistoryPage() {
       </Card>
 
       {/* Results */}
-      <Card className="p-6">
+      <Card className="p-6 bg-card border-border">
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 text-red-700 rounded-md">
+          <div className="mb-4 p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-md">
             <p className="flex items-center">
               <AlertCircle className="h-4 w-4 mr-2" />
               {error}
             </p>
           </div>
         )}
+
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">
+          <h2 className="text-lg font-semibold text-foreground">
             Conversions ({filteredConversions.length})
           </h2>
-          <div className="flex items-center space-x-4">
-            {/* Debug controls - remove in production */}
-            <div className="flex items-center space-x-2">
-              <Button
-                onClick={handleTestFetch}
-                variant="outline"
-                size="sm"
-                className="bg-yellow-50 border-yellow-200 text-yellow-700 hover:bg-yellow-100"
-              >
-                Test API
-              </Button>
-
-              {!showTokenInput ? (
-                <Button
-                  onClick={() => setShowTokenInput(true)}
-                  variant="outline"
-                  size="sm"
-                  className="bg-blue-50 border-blue-200 text-blue-700 hover:bg-blue-100"
-                >
-                  Test with Token
-                </Button>
-              ) : (
-                <div className="flex items-center space-x-2">
-                  <Input
-                    placeholder="Paste JWT token here..."
-                    value={manualToken}
-                    onChange={(e) => setManualToken(e.target.value)}
-                    className="w-80 text-xs"
-                  />
-                  <Button
-                    onClick={testWithManualToken}
-                    size="sm"
-                    className="bg-green-600 hover:bg-green-700 text-white"
-                  >
-                    Test
-                  </Button>
-                  <Button
-                    onClick={() => setShowTokenInput(false)}
-                    variant="outline"
-                    size="sm"
-                  >
-                    Cancel
-                  </Button>
-                </div>
-              )}
-            </div>
-
-            {filteredConversions.length > 0 && (
-              <p className="text-sm text-gray-500">
-                Showing {filteredConversions.length} of {conversions.length} conversions
-              </p>
-            )}
-          </div>
+          {filteredConversions.length > 0 && (
+            <p className="text-sm text-muted-foreground">
+              Showing {filteredConversions.length} of {conversions.length} conversions
+            </p>
+          )}
         </div>
 
         {filteredConversions.length === 0 ? (
           <div className="text-center py-12">
-            <FileImage className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">
+            <FileImage className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-2 text-sm font-medium text-foreground">
               {conversions.length === 0 ? "No conversions yet" : "No conversions match your filters"}
             </h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <p className="mt-1 text-sm text-muted-foreground">
               {conversions.length === 0
                 ? "Start by converting your first SVG file."
                 : "Try adjusting your search or filter criteria."
@@ -639,7 +453,7 @@ export default function HistoryPage() {
             {filteredConversions.map((conversion) => (
               <div
                 key={conversion.id}
-                className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50"
+                className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50"
               >
                 <div className="flex items-center space-x-4 flex-1">
                   <div className="flex-shrink-0">
@@ -648,16 +462,16 @@ export default function HistoryPage() {
 
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center space-x-2 mb-1">
-                      <p className="text-sm font-medium text-gray-900 truncate">
+                      <p className="text-sm font-medium text-foreground truncate">
                         {conversion.originalName}
                       </p>
-                      <span className="text-sm text-gray-500">→</span>
-                      <span className="text-sm font-medium text-gray-700">
+                      <span className="text-sm text-muted-foreground">→</span>
+                      <span className="text-sm font-medium text-foreground">
                         {conversion.targetFormat.toUpperCase()}
                       </span>
                     </div>
 
-                    <div className="flex items-center space-x-4 text-xs text-gray-500">
+                    <div className="flex items-center space-x-4 text-xs text-muted-foreground">
                       <span>{formatFileSize(conversion.fileSize)}</span>
                       {conversion.outputSize && (
                         <>
@@ -678,17 +492,17 @@ export default function HistoryPage() {
                     </div>
 
                     {conversion.error && (
-                      <p className="text-xs text-red-500 mt-1">{conversion.error}</p>
+                      <p className="text-xs text-destructive mt-1">{conversion.error}</p>
                     )}
                   </div>
                 </div>
 
                 <div className="flex items-center space-x-2">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${conversion.status === "COMPLETED"
-                    ? "bg-green-100 text-green-800"
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${conversion.status === "COMPLETED"
+                    ? "bg-green-600 text-white dark:bg-green-500 dark:text-green-950"
                     : conversion.status === "PROCESSING"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : "bg-red-100 text-red-800"
+                      ? "bg-orange-500 text-white dark:bg-orange-400 dark:text-orange-950"
+                      : "bg-red-600 text-white dark:bg-red-500 dark:text-red-950"
                     }`}>
                     {getStatusText(conversion.status)}
                   </span>
@@ -698,16 +512,26 @@ export default function HistoryPage() {
                       size="sm"
                       variant="outline"
                       onClick={() => downloadFile(conversion)}
+                      disabled={downloadingFiles.has(conversion.id)}
+                      className="text-primary hover:text-primary/80 hover:bg-primary/10 border-border"
                     >
-                      <Download className="h-4 w-4" />
+                      {downloadingFiles.has(conversion.id) ? (
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary"></div>
+                      ) : (
+                        <Download className="h-4 w-4" />
+                      )}
                     </Button>
                   )}
 
                   <Button
                     size="sm"
                     variant="ghost"
-                    onClick={() => deleteConversion(conversion.id)}
-                    className="text-gray-400 hover:text-red-500"
+                    onClick={() => handleDeleteClick(conversion)}
+                    disabled={conversion.status === "PROCESSING"}
+                    className={`${conversion.status === "PROCESSING"
+                      ? "text-muted-foreground cursor-not-allowed"
+                      : "text-muted-foreground hover:text-destructive"
+                      }`}
                   >
                     <Trash2 className="h-4 w-4" />
                   </Button>
@@ -725,36 +549,78 @@ export default function HistoryPage() {
             variant="outline"
             disabled={currentPage === 1}
             onClick={() => setCurrentPage(prev => Math.max(prev - 1, 1))}
+            className="border-border text-foreground hover:bg-accent"
           >
             Previous
           </Button>
-          <div className="text-sm text-gray-600">
+          <div className="text-sm text-muted-foreground">
             Page {currentPage} of {totalPages}
           </div>
           <Button
             variant="outline"
             disabled={currentPage === totalPages}
             onClick={() => setCurrentPage(prev => Math.min(prev + 1, totalPages))}
+            className="border-border text-foreground hover:bg-accent"
           >
             Next
           </Button>
         </div>
       )}
 
-      {/* Debug: Check session and token status */}
-      <div className="mt-10 p-4 bg-gray-50 rounded-lg border">
-        <h3 className="text-sm font-semibold text-gray-800 mb-2">
-          Debug: NextAuth Session
-        </h3>
-        <pre className="text-xs text-gray-500">
-          {JSON.stringify({
-            hasSession: !!session,
-            user: session?.user,
-            accessToken: session?.accessToken,
-            sessionKeys: session ? Object.keys(session) : []
-          }, null, 2)}
-        </pre>
-      </div>
+      {/* Delete Confirmation Dialog */}
+      {deleteConfirm.isOpen && (
+        <div className="fixed inset-0 bg-black/20 backdrop-blur-sm flex items-center justify-center z-50">
+          <div className="bg-card rounded-lg p-6 w-full max-w-md mx-4 shadow-xl border border-border">
+            <div className="flex items-center mb-4">
+              <AlertCircle className="h-6 w-6 text-destructive mr-3" />
+              <h3 className="text-lg font-semibold text-foreground">
+                Confirm Delete
+              </h3>
+            </div>
+
+            <p className="text-muted-foreground mb-6">
+              Are you sure you want to delete the conversion for{" "}
+              <span className="font-medium text-foreground">
+                {deleteConfirm.conversionName}
+              </span>
+              ? This action cannot be undone.
+            </p>
+
+            <div className="flex justify-end space-x-3">
+              <Button
+                variant="outline"
+                onClick={cancelDelete}
+                className="text-muted-foreground hover:text-foreground border-border"
+              >
+                Cancel
+              </Button>
+              <Button
+                onClick={confirmDelete}
+                className="bg-destructive hover:bg-destructive/90 text-destructive-foreground"
+              >
+                Delete
+              </Button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Notification Toast */}
+      {notification.show && (
+        <div className={`fixed top-4 right-4 z-50 flex items-center p-4 rounded-lg shadow-lg border ${notification.type === "success"
+          ? "bg-green-50 border-green-200 text-green-800 dark:bg-green-900/20 dark:border-green-800 dark:text-green-400"
+          : "bg-red-50 border-red-200 text-red-800 dark:bg-red-900/20 dark:border-red-800 dark:text-red-400"
+          }`}>
+          <div className="flex items-center">
+            {notification.type === "success" ? (
+              <CheckCircle className="h-5 w-5 mr-3" />
+            ) : (
+              <AlertCircle className="h-5 w-5 mr-3" />
+            )}
+            <span className="text-sm font-medium">{notification.message}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

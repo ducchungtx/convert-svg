@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
+import { PageLoader } from "@/components/ui/page-loader";
 
 interface DashboardStats {
   totalConversions: number;
@@ -106,13 +107,13 @@ export default function DashboardPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "COMPLETED":
-        return <CheckCircle className="h-4 w-4 text-green-500" />;
+        return <CheckCircle className="h-4 w-4 text-green-600 dark:text-green-500" />;
       case "PROCESSING":
-        return <Clock className="h-4 w-4 text-yellow-500 animate-spin" />;
+        return <Clock className="h-4 w-4 text-orange-500 dark:text-orange-400 animate-spin" />;
       case "FAILED":
-        return <AlertCircle className="h-4 w-4 text-red-500" />;
+        return <AlertCircle className="h-4 w-4 text-red-600 dark:text-red-500" />;
       default:
-        return <Clock className="h-4 w-4 text-gray-500" />;
+        return <Clock className="h-4 w-4 text-muted-foreground" />;
     }
   };
 
@@ -134,19 +135,7 @@ export default function DashboardPage() {
     : 0;
 
   if (loading) {
-    return (
-      <div className="p-6">
-        <div className="animate-pulse space-y-6">
-          <div className="h-8 bg-gray-200 rounded w-1/4"></div>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            {[1, 2, 3, 4].map((i) => (
-              <div key={i} className="h-32 bg-gray-200 rounded-lg"></div>
-            ))}
-          </div>
-          <div className="h-64 bg-gray-200 rounded-lg"></div>
-        </div>
-      </div>
-    );
+    return <PageLoader variant="dashboard" />;
   }
 
   return (
@@ -154,10 +143,10 @@ export default function DashboardPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">
+          <h1 className="text-2xl font-bold text-foreground">
             Welcome back, {session?.user?.name || "User"}!
           </h1>
-          <p className="text-gray-600">
+          <p className="text-muted-foreground">
             {"Here's an overview of your SVG conversion activity."}
           </p>
         </div>
@@ -171,51 +160,51 @@ export default function DashboardPage() {
 
       {/* Stats Cards */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-        <Card className="p-6">
+        <Card className="p-6 bg-card border-border">
           <div className="flex items-center">
-            <div className="p-2 bg-blue-100 rounded-lg">
-              <FileImage className="h-6 w-6 text-blue-600" />
+            <div className="p-2 bg-blue-100 dark:bg-blue-900/30 rounded-lg">
+              <FileImage className="h-6 w-6 text-blue-600 dark:text-blue-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Conversions</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.totalConversions}</p>
+              <p className="text-sm font-medium text-muted-foreground">Total Conversions</p>
+              <p className="text-2xl font-bold text-foreground">{stats.totalConversions}</p>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-6 bg-card border-border">
           <div className="flex items-center">
-            <div className="p-2 bg-green-100 rounded-lg">
-              <CheckCircle className="h-6 w-6 text-green-600" />
+            <div className="p-2 bg-green-100 dark:bg-green-900/30 rounded-lg">
+              <CheckCircle className="h-6 w-6 text-green-600 dark:text-green-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Successful</p>
-              <p className="text-2xl font-bold text-gray-900">{stats.successfulConversions}</p>
+              <p className="text-sm font-medium text-muted-foreground">Successful</p>
+              <p className="text-2xl font-bold text-foreground">{stats.successfulConversions}</p>
             </div>
           </div>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-6 bg-card border-border">
           <div className="flex items-center">
-            <div className="p-2 bg-yellow-100 rounded-lg">
-              <TrendingUp className="h-6 w-6 text-yellow-600" />
+            <div className="p-2 bg-yellow-100 dark:bg-yellow-900/30 rounded-lg">
+              <TrendingUp className="h-6 w-6 text-yellow-600 dark:text-yellow-400" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Success Rate</p>
-              <p className="text-2xl font-bold text-gray-900">{successRate}%</p>
+              <p className="text-sm font-medium text-muted-foreground">Success Rate</p>
+              <p className="text-2xl font-bold text-foreground">{successRate}%</p>
             </div>
           </div>
         </Card>
 
         {session?.user?.role === "ADMIN" && (
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center">
-              <div className="p-2 bg-purple-100 rounded-lg">
-                <Users className="h-6 w-6 text-purple-600" />
+              <div className="p-2 bg-purple-100 dark:bg-purple-900/30 rounded-lg">
+                <Users className="h-6 w-6 text-purple-600 dark:text-purple-400" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Users</p>
-                <p className="text-2xl font-bold text-gray-900">{stats.totalUsers}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Users</p>
+                <p className="text-2xl font-bold text-foreground">{stats.totalUsers}</p>
               </div>
             </div>
           </Card>
@@ -223,19 +212,19 @@ export default function DashboardPage() {
       </div>
 
       {/* Recent Conversions */}
-      <Card className="p-6">
+      <Card className="p-6 bg-card border-border">
         <div className="flex items-center justify-between mb-6">
-          <h2 className="text-lg font-semibold text-gray-900">Recent Conversions</h2>
-          <Link href="/dashboard/history" className="text-blue-600 hover:text-blue-800 text-sm">
+          <h2 className="text-lg font-semibold text-foreground">Recent Conversions</h2>
+          <Link href="/dashboard/history" className="text-primary hover:text-primary/80 text-sm">
             View all
           </Link>
         </div>
 
         {recentConversions.length === 0 ? (
           <div className="text-center py-12">
-            <FileImage className="mx-auto h-12 w-12 text-gray-400" />
-            <h3 className="mt-2 text-sm font-medium text-gray-900">No conversions yet</h3>
-            <p className="mt-1 text-sm text-gray-500">
+            <FileImage className="mx-auto h-12 w-12 text-muted-foreground" />
+            <h3 className="mt-2 text-sm font-medium text-foreground">No conversions yet</h3>
+            <p className="mt-1 text-sm text-muted-foreground">
               Get started by converting your first SVG file.
             </p>
             <div className="mt-6">
@@ -250,30 +239,30 @@ export default function DashboardPage() {
         ) : (
           <div className="space-y-4">
             {recentConversions.map((conversion) => (
-              <div key={conversion.id} className="flex items-center justify-between p-4 border rounded-lg hover:bg-gray-50">
+              <div key={conversion.id} className="flex items-center justify-between p-4 border border-border rounded-lg hover:bg-accent/50">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0">
                     {getStatusIcon(conversion.status)}
                   </div>
                   <div>
-                    <p className="text-sm font-medium text-gray-900">
+                    <p className="text-sm font-medium text-foreground">
                       {conversion.originalName}
                     </p>
-                    <p className="text-sm text-gray-500">
+                    <p className="text-sm text-muted-foreground">
                       Convert to {conversion.targetFormat} • {formatFileSize(conversion.fileSize)}
                     </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-4">
-                  <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${conversion.status === "COMPLETED"
-                    ? "bg-green-100 text-green-800"
+                  <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${conversion.status === "COMPLETED"
+                    ? "bg-green-600 text-white dark:bg-green-500 dark:text-green-950"
                     : conversion.status === "PROCESSING"
-                      ? "bg-yellow-100 text-yellow-800"
-                      : "bg-red-100 text-red-800"
+                      ? "bg-orange-500 text-white dark:bg-orange-400 dark:text-orange-950"
+                      : "bg-red-600 text-white dark:bg-red-500 dark:text-red-950"
                     }`}>
                     {getStatusText(conversion.status)}
                   </span>
-                  <span className="text-sm text-gray-500">
+                  <span className="text-sm text-muted-foreground">
                     {formatTimeAgo(conversion.createdAt)}
                   </span>
                 </div>
@@ -285,53 +274,53 @@ export default function DashboardPage() {
 
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        <Card className="p-6">
+        <Card className="p-6 bg-card border-border">
           <div className="flex items-center mb-4">
-            <Upload className="h-6 w-6 text-blue-600" />
-            <h3 className="ml-2 text-lg font-semibold text-gray-900">Convert Files</h3>
+            <Upload className="h-6 w-6 text-blue-600 dark:text-blue-400" />
+            <h3 className="ml-2 text-lg font-semibold text-foreground">Convert Files</h3>
           </div>
-          <p className="text-gray-600 mb-4">
+          <p className="text-muted-foreground mb-4">
             Upload and convert your SVG files to various formats.
           </p>
           <Link href="/dashboard/convert">
             <Button
               variant="outline"
-              className="w-full border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 hover:text-gray-900 font-medium"
+              className="w-full border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground font-medium"
             >
               Start Converting
             </Button>
           </Link>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-6 bg-card border-border">
           <div className="flex items-center mb-4">
-            <Clock className="h-6 w-6 text-green-600" />
-            <h3 className="ml-2 text-lg font-semibold text-gray-900">View History</h3>
+            <Clock className="h-6 w-6 text-green-600 dark:text-green-400" />
+            <h3 className="ml-2 text-lg font-semibold text-foreground">View History</h3>
           </div>
-          <p className="text-gray-600 mb-4">
+          <p className="text-muted-foreground mb-4">
             Check your previous conversions and download files.
           </p>
           <Link href="/dashboard/history">
             <Button
               variant="outline"
-              className="w-full border border-gray-300 bg-white text-gray-900 hover:bg-gray-50 hover:text-gray-900 font-medium"
+              className="w-full border-border bg-background text-foreground hover:bg-accent hover:text-accent-foreground font-medium"
             >
               View History
             </Button>
           </Link>
         </Card>
 
-        <Card className="p-6">
+        <Card className="p-6 bg-card border-border">
           <div className="flex items-center mb-4">
-            <BarChart3 className="h-6 w-6 text-purple-600" />
-            <h3 className="ml-2 text-lg font-semibold text-gray-900">Analytics</h3>
+            <BarChart3 className="h-6 w-6 text-purple-600 dark:text-purple-400" />
+            <h3 className="ml-2 text-lg font-semibold text-foreground">Analytics</h3>
           </div>
-          <p className="text-gray-600 mb-4">
+          <p className="text-muted-foreground mb-4">
             Track your usage patterns and conversion statistics.
           </p>
           <Button
             variant="outline"
-            className="w-full border border-gray-300 bg-gray-100 text-gray-600 font-medium cursor-not-allowed"
+            className="w-full border-border bg-muted text-muted-foreground font-medium cursor-not-allowed"
             disabled
           >
             Coming Soon

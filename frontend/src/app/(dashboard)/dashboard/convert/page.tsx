@@ -177,15 +177,15 @@ export default function ConvertPage() {
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending":
-        return <FileImage className="h-5 w-5 text-gray-500" />;
+        return <FileImage className="h-5 w-5 text-muted-foreground" />;
       case "converting":
-        return <Loader2 className="h-5 w-5 text-blue-500 animate-spin" />;
+        return <Loader2 className="h-5 w-5 text-blue-600 animate-spin" />;
       case "completed":
-        return <CheckCircle className="h-5 w-5 text-green-500" />;
+        return <CheckCircle className="h-5 w-5 text-green-600" />;
       case "error":
-        return <AlertCircle className="h-5 w-5 text-red-500" />;
+        return <AlertCircle className="h-5 w-5 text-red-600" />;
       default:
-        return <FileImage className="h-5 w-5 text-gray-500" />;
+        return <FileImage className="h-5 w-5 text-muted-foreground" />;
     }
   };
 
@@ -205,8 +205,8 @@ export default function ConvertPage() {
       {/* Header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Convert SVG Files</h1>
-          <p className="text-gray-600">
+          <h1 className="text-2xl font-bold text-foreground">Convert SVG Files</h1>
+          <p className="text-muted-foreground">
             Upload your SVG files and convert them to various formats.
           </p>
         </div>
@@ -219,13 +219,14 @@ export default function ConvertPage() {
       </div>
 
       {/* Conversion Settings */}
-      <Card className="p-6">
+      <Card className="p-6 bg-card border-border">
         <div className="flex items-center justify-between mb-4">
-          <h2 className="text-lg font-semibold text-gray-900">Conversion Settings</h2>
+          <h2 className="text-lg font-semibold text-foreground">Conversion Settings</h2>
           <Button
             variant="ghost"
             size="sm"
             onClick={() => setShowAdvancedSettings(!showAdvancedSettings)}
+            className="text-muted-foreground hover:bg-muted"
           >
             <SettingsIcon className="mr-2 h-4 w-4" />
             {showAdvancedSettings ? "Hide" : "Show"} Advanced
@@ -235,7 +236,7 @@ export default function ConvertPage() {
         <div className="space-y-4">
           {/* Output Format */}
           <div>
-            <label className="block text-sm font-medium text-gray-700 mb-2">
+            <label className="block text-sm font-medium text-foreground mb-2">
               Output Format
             </label>
             <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-3">
@@ -245,12 +246,12 @@ export default function ConvertPage() {
                   type="button"
                   onClick={() => setSettings((prev) => ({ ...prev, format: format.value }))}
                   className={`p-3 border-2 rounded-lg text-left transition-colors ${settings.format === format.value
-                      ? "border-blue-500 bg-blue-50"
-                      : "border-gray-200 hover:border-gray-300"
+                    ? "border-primary bg-primary/10"
+                    : "border-border hover:border-border/60 bg-card"
                     }`}
                 >
-                  <div className="font-medium text-sm">{format.label}</div>
-                  <div className="text-xs text-gray-500">{format.description}</div>
+                  <div className="font-medium text-sm text-foreground">{format.label}</div>
+                  <div className="text-xs text-muted-foreground">{format.description}</div>
                 </button>
               ))}
             </div>
@@ -258,12 +259,12 @@ export default function ConvertPage() {
 
           {/* Advanced Settings */}
           {showAdvancedSettings && (
-            <div className="space-y-4 pt-4 border-t">
+            <div className="space-y-4 pt-4 border-t border-border">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {/* Quality */}
                 {(settings.format === "jpg" || settings.format === "webp") && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Quality: {settings.quality}%
                     </label>
                     <input
@@ -273,7 +274,7 @@ export default function ConvertPage() {
                       step="10"
                       value={settings.quality}
                       onChange={(e) => setSettings((prev) => ({ ...prev, quality: parseInt(e.target.value) }))}
-                      className="w-full"
+                      className="w-full accent-primary"
                     />
                   </div>
                 )}
@@ -281,13 +282,13 @@ export default function ConvertPage() {
                 {/* Background Color */}
                 {settings.format !== "svg" && (
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Background Color
                     </label>
                     <select
                       value={settings.backgroundColor}
                       onChange={(e) => setSettings((prev) => ({ ...prev, backgroundColor: e.target.value }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-background text-foreground"
                     >
                       <option value="transparent">Transparent</option>
                       <option value="white">White</option>
@@ -305,16 +306,16 @@ export default function ConvertPage() {
                     id="maintainAspectRatio"
                     checked={settings.maintainAspectRatio}
                     onChange={(e) => setSettings((prev) => ({ ...prev, maintainAspectRatio: e.target.checked }))}
-                    className="h-4 w-4 text-blue-600 border-gray-300 rounded focus:ring-blue-500"
+                    className="h-4 w-4 text-primary border-border rounded focus:ring-primary bg-background"
                   />
-                  <label htmlFor="maintainAspectRatio" className="ml-2 text-sm text-gray-700">
+                  <label htmlFor="maintainAspectRatio" className="ml-2 text-sm text-foreground">
                     Maintain aspect ratio
                   </label>
                 </div>
 
                 <div className="grid grid-cols-2 gap-4">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-foreground mb-1">
                       Width (px)
                     </label>
                     <input
@@ -322,11 +323,11 @@ export default function ConvertPage() {
                       placeholder="Auto"
                       value={settings.width || ""}
                       onChange={(e) => setSettings((prev) => ({ ...prev, width: e.target.value ? parseInt(e.target.value) : undefined }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-background text-foreground placeholder-muted-foreground"
                     />
                   </div>
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-1">
+                    <label className="block text-sm font-medium text-foreground mb-1">
                       Height (px)
                     </label>
                     <input
@@ -334,7 +335,7 @@ export default function ConvertPage() {
                       placeholder="Auto"
                       value={settings.height || ""}
                       onChange={(e) => setSettings((prev) => ({ ...prev, height: e.target.value ? parseInt(e.target.value) : undefined }))}
-                      className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                      className="w-full px-3 py-2 border border-border rounded-md focus:outline-none focus:ring-primary focus:border-primary bg-background text-foreground placeholder-muted-foreground"
                     />
                   </div>
                 </div>
@@ -345,24 +346,24 @@ export default function ConvertPage() {
       </Card>
 
       {/* File Upload Area */}
-      <Card className="p-6">
+      <Card className="p-6 bg-card border-border">
         <div
           {...getRootProps()}
           className={`border-2 border-dashed rounded-lg p-8 text-center cursor-pointer transition-colors ${isDragActive
-              ? "border-blue-500 bg-blue-50"
-              : "border-gray-300 hover:border-gray-400"
+            ? "border-primary bg-primary/10"
+            : "border-border hover:border-muted-foreground bg-muted/30"
             }`}
         >
           <input {...getInputProps()} />
-          <Upload className="mx-auto h-12 w-12 text-gray-400 mb-4" />
+          <Upload className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
           {isDragActive ? (
-            <p className="text-lg text-blue-600">Drop your SVG files here...</p>
+            <p className="text-lg text-primary">Drop your SVG files here...</p>
           ) : (
             <div>
-              <p className="text-lg text-gray-600 mb-2">
+              <p className="text-lg text-foreground mb-2">
                 Drag & drop SVG files here, or click to select
               </p>
-              <p className="text-sm text-gray-500">
+              <p className="text-sm text-muted-foreground">
                 Supports multiple files • SVG format only
               </p>
             </div>
@@ -372,9 +373,9 @@ export default function ConvertPage() {
 
       {/* File List */}
       {files.length > 0 && (
-        <Card className="p-6">
+        <Card className="p-6 bg-card border-border">
           <div className="flex items-center justify-between mb-4">
-            <h2 className="text-lg font-semibold text-gray-900">
+            <h2 className="text-lg font-semibold text-foreground">
               Files ({files.length})
             </h2>
             <div className="space-x-2">
@@ -383,7 +384,7 @@ export default function ConvertPage() {
                   Convert All Files
                 </Button>
               )}
-              <Button variant="outline" onClick={clearAll}>
+              <Button variant="outline" onClick={clearAll} className="border-border text-muted-foreground hover:bg-muted">
                 Clear All
               </Button>
             </div>
@@ -391,16 +392,16 @@ export default function ConvertPage() {
 
           <div className="space-y-3">
             {files.map((file) => (
-              <div key={file.id} className="flex items-center justify-between p-4 border rounded-lg">
+              <div key={file.id} className="flex items-center justify-between p-4 border border-border rounded-lg bg-muted/30">
                 <div className="flex items-center space-x-4">
                   <div className="flex-shrink-0">
                     {getStatusIcon(file.status)}
                   </div>
                   <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-gray-900 truncate">
+                    <p className="text-sm font-medium text-foreground truncate">
                       {file.file.name}
                     </p>
-                    <div className="flex items-center space-x-2 text-sm text-gray-500">
+                    <div className="flex items-center space-x-2 text-sm text-muted-foreground">
                       <span>{formatFileSize(file.file.size)}</span>
                       <span>→</span>
                       <span>{file.targetFormat.toUpperCase()}</span>
@@ -408,13 +409,13 @@ export default function ConvertPage() {
                         <span>• {file.progress}%</span>
                       )}
                       {file.error && (
-                        <span className="text-red-500">• {file.error}</span>
+                        <span className="text-red-600">• {file.error}</span>
                       )}
                     </div>
                     {file.status === "converting" && file.progress !== undefined && (
-                      <div className="w-full bg-gray-200 rounded-full h-1.5 mt-2">
+                      <div className="w-full bg-muted rounded-full h-1.5 mt-2">
                         <div
-                          className="bg-blue-600 h-1.5 rounded-full transition-all duration-300"
+                          className="bg-primary h-1.5 rounded-full transition-all duration-300"
                           style={{ width: `${file.progress}%` }}
                         />
                       </div>
@@ -433,6 +434,7 @@ export default function ConvertPage() {
                     size="sm"
                     onClick={() => removeFile(file.id)}
                     disabled={file.status === "converting"}
+                    className="text-muted-foreground hover:text-red-600 hover:bg-red-50"
                   >
                     <X className="h-4 w-4" />
                   </Button>

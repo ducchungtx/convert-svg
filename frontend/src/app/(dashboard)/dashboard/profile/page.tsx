@@ -20,13 +20,14 @@ import {
   BarChart3,
   AlertCircle,
   CheckCircle,
-  Clock,
-  Loader2
+  Clock
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { AuthService, UserService, type NotificationSettings } from "@/services";
+import { PageLoader } from "@/components/ui/page-loader";
 
 const profileSchema = z.object({
   name: z.string().min(2, "Name must be at least 2 characters"),
@@ -106,7 +107,6 @@ export default function ProfilePage() {
   const [activeTab, setActiveTab] = useState("profile");
   const [profileData, setProfileData] = useState<ProfileData | null>(null);
   const [fetchingData, setFetchingData] = useState(true);
-  const [hasInitialized, setHasInitialized] = useState(false);
   const [notifications, setNotifications] = useState<NotificationSettings>({
     emailNotifications: true,
     conversionComplete: true,
@@ -128,39 +128,18 @@ export default function ProfilePage() {
 
   // Initial data fetch - only run once on mount
   useEffect(() => {
-    // Only run if not already initialized
-    if (hasInitialized) {
-      return;
-    }
-
-    let isMounted = true;
-    setHasInitialized(true);
-
     const initializeProfile = async () => {
       try {
         setFetchingData(true);
         const data = await AuthService.getProfile();
-        if (isMounted) {
-          setProfileData(data);
-        }
-      } catch (error) {
-        if (isMounted) {
-          console.error('Error fetching profile data:', error);
-          toast.error('Failed to load profile data');
-        }
+        setProfileData(data);
       } finally {
-        if (isMounted) {
-          setFetchingData(false);
-        }
+        setFetchingData(false);
       }
     };
 
     initializeProfile();
-
-    return () => {
-      isMounted = false;
-    };
-  }, [hasInitialized]); // Remove status dependency
+  }, []); // Remove status dependency
 
   // Form initialization when profile data is ready
   useEffect(() => {
@@ -280,69 +259,62 @@ export default function ProfilePage() {
     <div className="p-6 space-y-6">
       {/* Header */}
       <div>
-        <h1 className="text-2xl font-bold text-gray-900">Profile Settings</h1>
-        <p className="text-gray-600">
+        <h1 className="text-2xl font-bold text-foreground">Profile Settings</h1>
+        <p className="text-muted-foreground">
           Manage your account settings and preferences.
         </p>
       </div>
 
       {/* Loading State */}
-      {fetchingData && (
-        <Card className="p-6">
-          <div className="flex items-center justify-center">
-            <Loader2 className="h-6 w-6 animate-spin mr-2" />
-            <span>Loading profile data...</span>
-          </div>
-        </Card>
-      )}
+      {fetchingData && <PageLoader variant="form" />}
 
       {/* User Stats */}
       {!fetchingData && profileData && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center">
               <div className="p-2 bg-blue-100 rounded-lg">
                 <FileImage className="h-6 w-6 text-blue-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Total Conversions</p>
-                <p className="text-2xl font-bold text-gray-900">{profileData.stats.totalConversions}</p>
+                <p className="text-sm font-medium text-muted-foreground">Total Conversions</p>
+                <p className="text-2xl font-bold text-foreground">{profileData.stats.totalConversions}</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center">
               <div className="p-2 bg-green-100 rounded-lg">
                 <CheckCircle className="h-6 w-6 text-green-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Completed</p>
-                <p className="text-2xl font-bold text-gray-900">{profileData.stats.completedConversions}</p>
+                <p className="text-sm font-medium text-muted-foreground">Completed</p>
+                <p className="text-2xl font-bold text-foreground">{profileData.stats.completedConversions}</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center">
-              <div className="p-2 bg-yellow-100 rounded-lg">
-                <Clock className="h-6 w-6 text-yellow-600" />
+              <div className="p-2 bg-orange-100 rounded-lg">
+                <Clock className="h-6 w-6 text-orange-500" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Processing</p>
-                <p className="text-2xl font-bold text-gray-900">{profileData.stats.processingConversions}</p>
+                <p className="text-sm font-medium text-muted-foreground">Processing</p>
+                <p className="text-2xl font-bold text-foreground">{profileData.stats.processingConversions}</p>
               </div>
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center">
               <div className="p-2 bg-red-100 rounded-lg">
                 <AlertCircle className="h-6 w-6 text-red-600" />
               </div>
               <div className="ml-4">
-                <p className="text-sm font-medium text-gray-600">Failed</p>
-                <p className="text-2xl font-bold text-gray-900">{profileData.stats.failedConversions}</p>
+                <p className="text-sm font-medium text-muted-foreground">Failed</p>
+                <p className="text-2xl font-bold text-foreground">{profileData.stats.failedConversions}</p>
               </div>
             </div>
           </Card>
@@ -352,52 +324,52 @@ export default function ProfilePage() {
       {/* Subscription Info */}
       {!fetchingData && profileData && (
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Subscription</p>
-                <p className="text-2xl font-bold text-gray-900">{profileData.subscription.type}</p>
+                <p className="text-sm font-medium text-muted-foreground">Subscription</p>
+                <p className="text-2xl font-bold text-foreground">{profileData.subscription.type}</p>
                 <p className={`text-sm ${profileData.subscription.status === 'ACTIVE' ? 'text-green-600' : 'text-red-600'}`}>
                   {profileData.subscription.status}
                 </p>
               </div>
-              <CreditCard className="h-8 w-8 text-gray-400" />
+              <CreditCard className="h-8 w-8 text-muted-foreground" />
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Daily Usage</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm font-medium text-muted-foreground">Daily Usage</p>
+                <p className="text-2xl font-bold text-foreground">
                   {profileData.usage.daily.used}/{profileData.usage.daily.limit}
                 </p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div className="w-full bg-muted rounded-full h-2 mt-2">
                   <div
-                    className="bg-blue-600 h-2 rounded-full transition-all duration-300"
+                    className="bg-primary h-2 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(profileData.usage.daily.percentage, 100)}%` }}
                   ></div>
                 </div>
               </div>
-              <BarChart3 className="h-8 w-8 text-gray-400" />
+              <BarChart3 className="h-8 w-8 text-muted-foreground" />
             </div>
           </Card>
 
-          <Card className="p-6">
+          <Card className="p-6 bg-card border-border">
             <div className="flex items-center justify-between">
               <div>
-                <p className="text-sm font-medium text-gray-600">Monthly Usage</p>
-                <p className="text-2xl font-bold text-gray-900">
+                <p className="text-sm font-medium text-muted-foreground">Monthly Usage</p>
+                <p className="text-2xl font-bold text-foreground">
                   {profileData.usage.monthly.used}/{profileData.usage.monthly.limit}
                 </p>
-                <div className="w-full bg-gray-200 rounded-full h-2 mt-2">
+                <div className="w-full bg-muted rounded-full h-2 mt-2">
                   <div
                     className="bg-purple-600 h-2 rounded-full transition-all duration-300"
                     style={{ width: `${Math.min(profileData.usage.monthly.percentage, 100)}%` }}
                   ></div>
                 </div>
               </div>
-              <Activity className="h-8 w-8 text-gray-400" />
+              <Activity className="h-8 w-8 text-muted-foreground" />
             </div>
           </Card>
         </div>
@@ -414,8 +386,8 @@ export default function ProfilePage() {
                   key={tab.id}
                   onClick={() => setActiveTab(tab.id)}
                   className={`w-full flex items-center px-3 py-2 text-sm font-medium rounded-md transition-colors ${activeTab === tab.id
-                    ? "bg-blue-100 text-blue-700"
-                    : "text-gray-600 hover:text-gray-900 hover:bg-gray-50"
+                    ? "bg-primary text-primary-foreground shadow-sm border border-primary"
+                    : "text-muted-foreground hover:text-foreground hover:bg-accent/50 border border-border hover:border-border/80"
                     }`}
                 >
                   <Icon className="mr-3 h-5 w-5" />
@@ -429,13 +401,13 @@ export default function ProfilePage() {
         {/* Content */}
         <div className="lg:col-span-3">
           {activeTab === "profile" && (
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Profile Information</h2>
+            <Card className="p-6 bg-card border-border">
+              <h2 className="text-lg font-semibold text-foreground mb-6">Profile Information</h2>
 
               <form onSubmit={profileForm.handleSubmit(onProfileSubmit)} className="space-y-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Full Name
                     </label>
                     <Input
@@ -449,7 +421,7 @@ export default function ProfilePage() {
                   </div>
 
                   <div>
-                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                    <label className="block text-sm font-medium text-foreground mb-2">
                       Email Address
                     </label>
                     <Input
@@ -465,10 +437,10 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Role
                   </label>
-                  <div className="px-3 py-2 bg-gray-50 border border-gray-300 rounded-md text-sm text-gray-600">
+                  <div className="px-3 py-2 bg-muted border border-border rounded-md text-sm text-muted-foreground">
                     {profileData?.user?.role || "USER"}
                   </div>
                 </div>
@@ -484,12 +456,12 @@ export default function ProfilePage() {
           )}
 
           {activeTab === "security" && (
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Security Settings</h2>
+            <Card className="p-6 bg-card border-border">
+              <h2 className="text-lg font-semibold text-foreground mb-6">Security Settings</h2>
 
               <form onSubmit={passwordForm.handleSubmit(onPasswordSubmit)} className="space-y-6">
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Current Password
                   </label>
                   <Input
@@ -504,7 +476,7 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     New Password
                   </label>
                   <Input
@@ -519,7 +491,7 @@ export default function ProfilePage() {
                 </div>
 
                 <div>
-                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                  <label className="block text-sm font-medium text-foreground mb-2">
                     Confirm New Password
                   </label>
                   <Input
@@ -544,96 +516,92 @@ export default function ProfilePage() {
           )}
 
           {activeTab === "notifications" && (
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Notification Preferences</h2>
+            <Card className="p-6 bg-card border-border">
+              <h2 className="text-lg font-semibold text-foreground mb-6">Notification Preferences</h2>
 
               <div className="space-y-6">
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900">Email Notifications</h3>
-                    <p className="text-sm text-gray-500">Receive notifications via email</p>
+                <div className="flex items-center justify-between py-4">
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Email Notifications
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      Receive notifications via email
+                    </p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={notifications.emailNotifications}
-                      onChange={(e) => handleNotificationChange("emailNotifications", e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
+                  <Switch
+                    checked={notifications.emailNotifications}
+                    onCheckedChange={(checked) => handleNotificationChange("emailNotifications", !!checked)}
+                  />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900">Conversion Complete</h3>
-                    <p className="text-sm text-gray-500">Get notified when file conversions are complete</p>
+                <div className="flex items-center justify-between py-4">
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Conversion Complete
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      Get notified when file conversions are complete
+                    </p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={notifications.conversionComplete}
-                      onChange={(e) => handleNotificationChange("conversionComplete", e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
+                  <Switch
+                    checked={notifications.conversionComplete}
+                    onCheckedChange={(checked) => handleNotificationChange("conversionComplete", !!checked)}
+                  />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900">Weekly Report</h3>
-                    <p className="text-sm text-gray-500">Receive weekly usage reports</p>
+                <div className="flex items-center justify-between py-4">
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Weekly Report
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      Receive weekly usage reports
+                    </p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={notifications.weeklyReport}
-                      onChange={(e) => handleNotificationChange("weeklyReport", e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
+                  <Switch
+                    checked={notifications.weeklyReport}
+                    onCheckedChange={(checked) => handleNotificationChange("weeklyReport", !!checked)}
+                  />
                 </div>
 
-                <div className="flex items-center justify-between">
-                  <div>
-                    <h3 className="text-sm font-medium text-gray-900">Security Alerts</h3>
-                    <p className="text-sm text-gray-500">Get notified about security-related events</p>
+                <div className="flex items-center justify-between py-4">
+                  <div className="space-y-0.5">
+                    <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                      Security Alerts
+                    </label>
+                    <p className="text-sm text-muted-foreground">
+                      Get notified about security-related events
+                    </p>
                   </div>
-                  <label className="relative inline-flex items-center cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={notifications.securityAlerts}
-                      onChange={(e) => handleNotificationChange("securityAlerts", e.target.checked)}
-                      className="sr-only peer"
-                    />
-                    <div className="w-11 h-6 bg-gray-200 peer-focus:outline-none peer-focus:ring-4 peer-focus:ring-blue-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all peer-checked:bg-blue-600"></div>
-                  </label>
+                  <Switch
+                    checked={notifications.securityAlerts}
+                    onCheckedChange={(checked) => handleNotificationChange("securityAlerts", !!checked)}
+                  />
                 </div>
               </div>
             </Card>
           )}
 
           {activeTab === "data" && (
-            <Card className="p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-6">Data & Privacy</h2>
+            <Card className="p-6 bg-card border-border">
+              <h2 className="text-lg font-semibold text-foreground mb-6">Data & Privacy</h2>
 
               <div className="space-y-6">
                 <div>
-                  <h3 className="text-sm font-medium text-gray-900 mb-2">Export Your Data</h3>
-                  <p className="text-sm text-gray-500 mb-4">
+                  <h3 className="text-sm font-medium text-foreground mb-2">Export Your Data</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
                     Download a copy of all your data including conversions and settings.
                   </p>
-                  <Button variant="outline" onClick={exportData}>
+                  <Button variant="secondary" onClick={exportData}>
                     <Download className="mr-2 h-4 w-4" />
                     Export Data
                   </Button>
                 </div>
 
-                <div className="border-t pt-6">
-                  <h3 className="text-sm font-medium text-red-900 mb-2">Delete Account</h3>
-                  <p className="text-sm text-gray-500 mb-4">
+                <div className="border-t border-border pt-6">
+                  <h3 className="text-sm font-medium text-red-600 mb-2">Delete Account</h3>
+                  <p className="text-sm text-muted-foreground mb-4">
                     Permanently delete your account and all associated data. This action cannot be undone.
                   </p>
                   <Button variant="destructive" onClick={deleteAccount} disabled={loading}>
