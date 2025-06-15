@@ -31,6 +31,22 @@ interface AdminStats {
   serverUptime: number;
 }
 
+interface LimitConfiguration {
+  id: string;
+  subscriptionType: "FREE" | "BASIC" | "PREMIUM" | "ENTERPRISE";
+  userType: "USER" | "GUEST";
+  maxFilesPerConversion: number;
+  maxFileSize: number;
+  maxDailyConversions: number | null;
+  maxMonthlyConversions: number | null;
+  allowedFormats: string[];
+  maxConcurrentJobs: number;
+  priorityLevel: number;
+  rateLimitPerMinute: number;
+  rateLimitPerHour: number;
+  isActive: boolean;
+}
+
 interface User {
   id: string;
   name: string;
@@ -63,6 +79,7 @@ export default function AdminPage() {
   const [stats, setStats] = useState<AdminStats | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [conversions, setConversions] = useState<Conversion[]>([]);
+  const [limitConfigs, setLimitConfigs] = useState<LimitConfiguration[]>([]);
   const [searchTerm, setSearchTerm] = useState("");
   const [userFilter, setUserFilter] = useState("all");
 
@@ -154,6 +171,85 @@ export default function AdminPage() {
         },
       ]);
 
+      // Mock limit configurations data
+      setLimitConfigs([
+        {
+          id: "1",
+          subscriptionType: "FREE",
+          userType: "USER",
+          maxFilesPerConversion: 1,
+          maxFileSize: 1024 * 1024 * 5, // 5MB
+          maxDailyConversions: 5,
+          maxMonthlyConversions: 50,
+          allowedFormats: ["png", "jpg", "jpeg"],
+          maxConcurrentJobs: 1,
+          priorityLevel: 1,
+          rateLimitPerMinute: 5,
+          rateLimitPerHour: 50,
+          isActive: true,
+        },
+        {
+          id: "2",
+          subscriptionType: "FREE",
+          userType: "GUEST",
+          maxFilesPerConversion: 1,
+          maxFileSize: 1024 * 1024 * 2, // 2MB
+          maxDailyConversions: 3,
+          maxMonthlyConversions: null,
+          allowedFormats: ["png", "jpg"],
+          maxConcurrentJobs: 1,
+          priorityLevel: 0,
+          rateLimitPerMinute: 3,
+          rateLimitPerHour: 20,
+          isActive: true,
+        },
+        {
+          id: "3",
+          subscriptionType: "BASIC",
+          userType: "USER",
+          maxFilesPerConversion: 3,
+          maxFileSize: 1024 * 1024 * 10, // 10MB
+          maxDailyConversions: 20,
+          maxMonthlyConversions: 500,
+          allowedFormats: ["png", "jpg", "jpeg", "pdf", "svg"],
+          maxConcurrentJobs: 2,
+          priorityLevel: 3,
+          rateLimitPerMinute: 10,
+          rateLimitPerHour: 100,
+          isActive: true,
+        },
+        {
+          id: "4",
+          subscriptionType: "PREMIUM",
+          userType: "USER",
+          maxFilesPerConversion: 5,
+          maxFileSize: 1024 * 1024 * 25, // 25MB
+          maxDailyConversions: 100,
+          maxMonthlyConversions: null,
+          allowedFormats: ["png", "jpg", "jpeg", "pdf", "svg", "eps", "webp"],
+          maxConcurrentJobs: 3,
+          priorityLevel: 5,
+          rateLimitPerMinute: 20,
+          rateLimitPerHour: 200,
+          isActive: true,
+        },
+        {
+          id: "5",
+          subscriptionType: "ENTERPRISE",
+          userType: "USER",
+          maxFilesPerConversion: 10,
+          maxFileSize: 1024 * 1024 * 100, // 100MB
+          maxDailyConversions: null,
+          maxMonthlyConversions: null,
+          allowedFormats: ["png", "jpg", "jpeg", "pdf", "svg", "eps", "webp", "tiff", "bmp"],
+          maxConcurrentJobs: 5,
+          priorityLevel: 10,
+          rateLimitPerMinute: 50,
+          rateLimitPerHour: 500,
+          isActive: true,
+        },
+      ]);
+
       setLoading(false);
     }, 1000);
   }, [session, router]);
@@ -186,6 +282,16 @@ export default function AdminPage() {
             status: user.status === "ACTIVE" ? "SUSPENDED" : "ACTIVE",
           }
           : user
+      )
+    );
+  };
+
+  const updateLimitConfig = (configId: string, updates: Partial<LimitConfiguration>) => {
+    setLimitConfigs((prev) =>
+      prev.map((config) =>
+        config.id === configId
+          ? { ...config, ...updates }
+          : config
       )
     );
   };
@@ -288,9 +394,9 @@ export default function AdminPage() {
             <button
               key={tab.id}
               onClick={() => setActiveTab(tab.id)}
-              className={`whitespace-nowrap py-2 px-1 border-b-2 font-medium text-sm ${activeTab === tab.id
-                ? "border-primary text-primary"
-                : "border-transparent text-muted-foreground hover:text-foreground hover:border-border"
+              className={`whitespace-nowrap py-3 px-4 border-b-2 font-medium text-sm transition-all duration-200 ${activeTab === tab.id
+                ? "border-blue-500 text-blue-600 bg-blue-50/50 dark:bg-blue-950/20 dark:text-blue-400"
+                : "border-transparent text-muted-foreground hover:text-foreground hover:border-gray-300 hover:bg-gray-50/50 dark:hover:bg-gray-800/20"
                 }`}
             >
               {tab.label}
@@ -506,29 +612,178 @@ export default function AdminPage() {
 
       {activeTab === "system" && (
         <div className="space-y-6">
+          {/* Subscription Plans Configuration */}
           <Card className="p-6 bg-card border-border">
-            <h2 className="text-lg font-semibold text-foreground mb-4">System Configuration</h2>
+            <h2 className="text-lg font-semibold text-foreground mb-6">Subscription Plans Configuration</h2>
+            <div className="space-y-6">
+              {["FREE", "BASIC", "PREMIUM", "ENTERPRISE"].map((planType) => {
+                const userConfig = limitConfigs.find(
+                  config => config.subscriptionType === planType && config.userType === "USER"
+                );
+                const guestConfig = limitConfigs.find(
+                  config => config.subscriptionType === planType && config.userType === "GUEST"
+                );
+
+                return (
+                  <div key={planType} className="border border-border rounded-lg p-4 bg-muted/20">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className={`font-semibold text-lg ${planType === "FREE" ? "text-gray-600" :
+                          planType === "BASIC" ? "text-blue-600" :
+                            planType === "PREMIUM" ? "text-purple-600" :
+                              "text-orange-600"
+                        }`}>
+                        {planType} Plan
+                      </h3>
+                      <span className={`px-3 py-1 rounded-full text-xs font-medium ${planType === "FREE" ? "bg-gray-100 text-gray-800" :
+                          planType === "BASIC" ? "bg-blue-100 text-blue-800" :
+                            planType === "PREMIUM" ? "bg-purple-100 text-purple-800" :
+                              "bg-orange-100 text-orange-800"
+                        }`}>
+                        {planType}
+                      </span>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                      {/* User Configuration */}
+                      {userConfig && (
+                        <div className="space-y-4">
+                          <h4 className="font-medium text-foreground border-b border-border pb-2">
+                            Registered Users
+                          </h4>
+                          <div className="space-y-3 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Files per conversion:</span>
+                              <span className="font-medium text-foreground">{userConfig.maxFilesPerConversion}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Max file size:</span>
+                              <span className="font-medium text-foreground">{formatFileSize(userConfig.maxFileSize)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Daily conversions:</span>
+                              <span className="font-medium text-foreground">
+                                {userConfig.maxDailyConversions || "Unlimited"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Monthly conversions:</span>
+                              <span className="font-medium text-foreground">
+                                {userConfig.maxMonthlyConversions || "Unlimited"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Concurrent jobs:</span>
+                              <span className="font-medium text-foreground">{userConfig.maxConcurrentJobs}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Rate limit/min:</span>
+                              <span className="font-medium text-foreground">{userConfig.rateLimitPerMinute}</span>
+                            </div>
+                            <div className="flex flex-col space-y-1">
+                              <span className="text-muted-foreground">Supported formats:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {userConfig.allowedFormats.map((format) => (
+                                  <span key={format} className="px-2 py-1 bg-blue-100 text-blue-800 rounded text-xs">
+                                    {format.toUpperCase()}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Guest Configuration */}
+                      {guestConfig && (
+                        <div className="space-y-4">
+                          <h4 className="font-medium text-foreground border-b border-border pb-2">
+                            Guest Users
+                          </h4>
+                          <div className="space-y-3 text-sm">
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Files per conversion:</span>
+                              <span className="font-medium text-foreground">{guestConfig.maxFilesPerConversion}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Max file size:</span>
+                              <span className="font-medium text-foreground">{formatFileSize(guestConfig.maxFileSize)}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Daily conversions:</span>
+                              <span className="font-medium text-foreground">
+                                {guestConfig.maxDailyConversions || "Unlimited"}
+                              </span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Concurrent jobs:</span>
+                              <span className="font-medium text-foreground">{guestConfig.maxConcurrentJobs}</span>
+                            </div>
+                            <div className="flex justify-between">
+                              <span className="text-muted-foreground">Rate limit/min:</span>
+                              <span className="font-medium text-foreground">{guestConfig.rateLimitPerMinute}</span>
+                            </div>
+                            <div className="flex flex-col space-y-1">
+                              <span className="text-muted-foreground">Supported formats:</span>
+                              <div className="flex flex-wrap gap-1">
+                                {guestConfig.allowedFormats.map((format) => (
+                                  <span key={format} className="px-2 py-1 bg-green-100 text-green-800 rounded text-xs">
+                                    {format.toUpperCase()}
+                                  </span>
+                                ))}
+                              </div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </div>
+
+                    <div className="mt-4 pt-4 border-t border-border">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => updateLimitConfig(userConfig?.id || "", {})}
+                        className="text-primary hover:bg-primary/10"
+                      >
+                        Edit Configuration
+                      </Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          </Card>
+
+          {/* Global System Configuration */}
+          <Card className="p-6 bg-card border-border">
+            <h2 className="text-lg font-semibold text-foreground mb-4">Global System Settings</h2>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-medium text-foreground">Max File Size</h3>
-                  <p className="text-sm text-muted-foreground">Maximum upload file size limit</p>
+                  <h3 className="text-sm font-medium text-foreground">Default Max File Size</h3>
+                  <p className="text-sm text-muted-foreground">Global maximum upload file size limit</p>
                 </div>
                 <span className="text-sm font-medium text-foreground">10MB</span>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-medium text-foreground">Concurrent Conversions</h3>
-                  <p className="text-sm text-muted-foreground">Maximum simultaneous processing jobs</p>
+                  <h3 className="text-sm font-medium text-foreground">Server Concurrent Jobs</h3>
+                  <p className="text-sm text-muted-foreground">Maximum simultaneous processing jobs across all users</p>
                 </div>
-                <span className="text-sm font-medium text-foreground">5</span>
+                <span className="text-sm font-medium text-foreground">20</span>
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <h3 className="text-sm font-medium text-foreground">Storage Retention</h3>
+                  <h3 className="text-sm font-medium text-foreground">File Storage Retention</h3>
                   <p className="text-sm text-muted-foreground">How long to keep converted files</p>
                 </div>
                 <span className="text-sm font-medium text-foreground">30 days</span>
+              </div>
+              <div className="flex items-center justify-between">
+                <div>
+                  <h3 className="text-sm font-medium text-foreground">Cleanup Schedule</h3>
+                  <p className="text-sm text-muted-foreground">Automatic cleanup of old files</p>
+                </div>
+                <span className="text-sm font-medium text-foreground">Daily at 3:00 AM</span>
               </div>
             </div>
           </Card>
