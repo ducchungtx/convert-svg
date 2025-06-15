@@ -7,6 +7,7 @@ const logger = require('../utils/logger');
 const { Queue } = require('bullmq');
 const redis = require('../utils/redis');
 const { checkAndUpdateUsage, canAccessFeature } = require('../utils/subscriptionHelper');
+const limitConfigService = require('../services/limitConfigService');
 
 const prisma = new PrismaClient();
 
@@ -78,37 +79,50 @@ const convertFile = async (req, res) => {
     const { targetFormat, quality, width, height } = req.body;
     const fileInfo = req.fileInfo;
     const user = req.user;
+    const isGuestConversion = req.headers['x-guest-conversion'] === 'true';
 
-    // Check subscription limits using the new subscription system
-    if (user) {
-      const usageCheck = await checkAndUpdateUsage(user.id, 'conversion');
-      if (!usageCheck.canUse) {
-        // Clean up uploaded file
-        await fs.unlink(fileInfo.tempPath).catch(err =>
-          logger.error('Failed to cleanup file:', err)
-        );
+    // Validate conversion limits using limitConfigService
+    const validationData = {
+      fileCount: 1, // Single file conversion
+      fileSize: fileInfo.size,
+      format: targetFormat
+    };
 
-        return res.status(429).json({
-          success: false,
-          message: usageCheck.message
-        });
-      }
-    } else {
-      // For anonymous users, check if they can access conversion feature
-      if (!canAccessFeature('FREE', 'conversion')) {
-        await fs.unlink(fileInfo.tempPath).catch(err =>
-          logger.error('Failed to cleanup file:', err)
-        );
+    const validation = await limitConfigService.validateConversionLimits(
+      user,
+      isGuestConversion,
+      validationData
+    );
 
-        return res.status(401).json({
-          success: false,
-          message: 'Please sign up to access conversion features'
-        });
-      }
+    if (!validation.isValid) {
+      // Clean up uploaded file
+      await fs.unlink(fileInfo.tempPath).catch(err =>
+        logger.error('Failed to cleanup file:', err)
+      );
+
+      return res.status(429).json({
+        success: false,
+        message: validation.errors.join(', '),
+        errors: validation.errors
+      });
+    }
+
+    // Get source format from file
+    const sourceFormat = getFormatFromMimeType(fileInfo.mimeType);
+
+    // Check if source format is supported
+    if (!validation.config.allowedFormats.includes(sourceFormat.toLowerCase())) {
+      await fs.unlink(fileInfo.tempPath).catch(err =>
+        logger.error('Failed to cleanup file:', err)
+      );
+
+      return res.status(400).json({
+        success: false,
+        message: `Source format ${sourceFormat} is not supported for your plan`
+      });
     }
 
     // Validate conversion
-    const sourceFormat = getFormatFromMimeType(fileInfo.mimeType);
     if (!isConversionSupported(sourceFormat, targetFormat)) {
       await fs.unlink(fileInfo.tempPath).catch(err =>
         logger.error('Failed to cleanup file:', err)
@@ -123,7 +137,7 @@ const convertFile = async (req, res) => {
     // Create conversion record
     const conversion = await prisma.conversion.create({
       data: {
-        userId: user?.id,
+        userId: user?.id, // null for guest users
         originalFilename: fileInfo.originalName,
         fromFormat: sourceFormat,
         toFormat: targetFormat,
@@ -226,12 +240,19 @@ const getConversionStatus = async (req, res) => {
       });
     }
 
+    // Check if this is a guest conversion
+    const isGuestConversion = conversion.metadata &&
+      JSON.parse(conversion.metadata || '{}').isGuest === true;
+
     // Check access permissions
     if (conversion.userId && (!user || conversion.userId !== user.id)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
+      // Allow access to guest conversions without authentication
+      if (!isGuestConversion) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied'
+        });
+      }
     }
 
     res.json({
@@ -274,12 +295,18 @@ const downloadFile = async (req, res) => {
       });
     }
 
+    // Guest conversions have userId = null
+    const isGuestConversion = !conversion.userId;
+
     // Check access permissions
     if (conversion.userId && (!user || conversion.userId !== user.id)) {
-      return res.status(403).json({
-        success: false,
-        message: 'Access denied'
-      });
+      // Allow access to guest conversions without authentication
+      if (!isGuestConversion) {
+        return res.status(403).json({
+          success: false,
+          message: 'Access denied'
+        });
+      }
     }
 
     if (conversion.status !== 'COMPLETED') {

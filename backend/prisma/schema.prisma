@@ -110,6 +110,27 @@ model Setting {
   @@map("settings")
 }
 
+model LimitConfiguration {
+  id                    Int              @id @default(autoincrement())
+  subscriptionType      SubscriptionType
+  userType              String // 'USER' or 'GUEST'
+  maxFilesPerConversion Int              @default(1)
+  maxFileSize           Int // in bytes
+  maxDailyConversions   Int              @default(5)
+  maxMonthlyConversions Int? // null for unlimited
+  allowedFormats        String           @db.Text // JSON array of formats
+  maxConcurrentJobs     Int              @default(1)
+  priorityLevel         Int              @default(0) // Higher = more priority
+  rateLimitPerMinute    Int              @default(5)
+  rateLimitPerHour      Int              @default(50)
+  isActive              Boolean          @default(true)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  @@unique([subscriptionType, userType])
+  @@map("limit_configurations")
+}
+
 model RateLimit {
   id            Int      @id @default(autoincrement())
   identifier    String

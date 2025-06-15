@@ -20,6 +20,7 @@ const rateLimitMiddleware = require('./src/middleware/rateLimit');
 const authRoutes = require('./src/routes/auth');
 const conversionRoutes = require('./src/routes/conversion');
 const adminRoutes = require('./src/routes/admin');
+const adminController = require('./src/controllers/adminController');
 
 // Swagger setup (conditionally imported)
 let swaggerUi, swaggerSpecs;
@@ -140,6 +141,9 @@ app.get('/api/health', (req, res) => {
 app.use('/api/auth', authRoutes);
 app.use('/api/conversion', conversionRoutes);
 app.use('/api/admin', adminRoutes);
+
+// Public API endpoints
+app.get('/api/guest/limits', adminController.getGuestLimits);
 
 /**
  * @swagger

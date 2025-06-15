@@ -3,6 +3,7 @@ const { validationResult } = require('express-validator');
 const logger = require('../utils/logger');
 const redis = require('../utils/redis');
 const { Queue } = require('bullmq');
+const limitConfigService = require('../services/limitConfigService');
 
 const prisma = new PrismaClient();
 
@@ -586,6 +587,119 @@ const getLogs = async (req, res) => {
   }
 };
 
+/**
+ * Get all limit configurations
+ */
+const getLimitConfigurations = async (req, res) => {
+  try {
+    const configs = await limitConfigService.getAllLimitConfigs();
+
+    res.json({
+      success: true,
+      data: { configurations: configs }
+    });
+  } catch (error) {
+    logger.error('Get limit configurations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get limit configurations'
+    });
+  }
+};
+
+/**
+ * Update limit configuration
+ */
+const updateLimitConfiguration = async (req, res) => {
+  try {
+    const errors = validationResult(req);
+    if (!errors.isEmpty()) {
+      return res.status(400).json({
+        success: false,
+        message: 'Validation failed',
+        errors: errors.array()
+      });
+    }
+
+    const { subscriptionType, userType } = req.params;
+    const updates = req.body;
+
+    // Remove non-updatable fields
+    delete updates.id;
+    delete updates.createdAt;
+    delete updates.updatedAt;
+
+    const config = await limitConfigService.updateLimitConfig(
+      subscriptionType,
+      userType,
+      updates
+    );
+
+    logger.info('Limit configuration updated by admin', {
+      adminId: req.user.id,
+      subscriptionType,
+      userType,
+      updates
+    });
+
+    res.json({
+      success: true,
+      message: 'Limit configuration updated successfully',
+      data: { configuration: config }
+    });
+  } catch (error) {
+    logger.error('Update limit configuration error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to update limit configuration'
+    });
+  }
+};
+
+/**
+ * Get guest limits (public endpoint)
+ */
+const getGuestLimits = async (req, res) => {
+  try {
+    const limits = await limitConfigService.getGuestLimits();
+
+    res.json({
+      success: true,
+      data: { limits }
+    });
+  } catch (error) {
+    logger.error('Get guest limits error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to get guest limits'
+    });
+  }
+};
+
+/**
+ * Initialize default configurations
+ */
+const initializeLimitConfigs = async (req, res) => {
+  try {
+    await limitConfigService.initializeDefaultConfigs();
+
+    logger.info('Default limit configurations initialized by admin', {
+      adminId: req.user.id
+    });
+
+    res.json({
+      success: true,
+      message: 'Default limit configurations initialized successfully'
+    });
+  } catch (error) {
+    logger.error('Initialize limit configurations error:', error);
+    res.status(500).json({
+      success: false,
+      message: 'Failed to initialize limit configurations'
+    });
+  }
+};
+
 module.exports = {
   getSystemStats,
   getUsers,
@@ -596,5 +710,9 @@ module.exports = {
   getSettings,
   updateSettings,
   clearFailedJobs,
-  getLogs
+  getLogs,
+  getLimitConfigurations,
+  updateLimitConfiguration,
+  getGuestLimits,
+  initializeLimitConfigs
 };

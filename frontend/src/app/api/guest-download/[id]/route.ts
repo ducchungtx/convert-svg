@@ -14,18 +14,60 @@ export async function GET(
       );
     }
 
-    // In a real application, you would:
-    // 1. Verify the conversion exists and is completed
-    // 2. Check if it's a guest conversion (no auth required)
-    // 3. Stream the file from storage
-    // 4. Set appropriate headers for download
+    // Proxy download request to backend
+    try {
+      const backendResponse = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3001'}/api/conversion/download/${conversionId}`, {
+        method: 'GET',
+      });
 
-    // For demo purposes, return a mock response
-    return NextResponse.json({
-      message: "File download would start here",
-      conversionId,
-      note: "In production, this would stream the converted file"
-    });
+      if (!backendResponse.ok) {
+        if (backendResponse.status === 404) {
+          return NextResponse.json(
+            { error: "File not found or conversion not completed" },
+            { status: 404 }
+          );
+        }
+
+        const errorData = await backendResponse.json().catch(() => ({}));
+        return NextResponse.json(
+          { error: errorData.message || "Download failed" },
+          { status: backendResponse.status }
+        );
+      }
+
+      // Get the file content as a stream
+      const fileBuffer = await backendResponse.arrayBuffer();
+
+      // Get content type and filename from backend response headers
+      const contentType = backendResponse.headers.get('content-type') || 'application/octet-stream';
+      const contentDisposition = backendResponse.headers.get('content-disposition');
+
+      let filename = `converted_${conversionId}`;
+      if (contentDisposition) {
+        const filenameMatch = contentDisposition.match(/filename[^;=\n]*=((['"]).*?\2|[^;\n]*)/);
+        if (filenameMatch) {
+          filename = filenameMatch[1].replace(/['"]/g, '');
+        }
+      }
+
+      // Create response with file content
+      const response = new NextResponse(fileBuffer);
+      response.headers.set('Content-Type', contentType);
+      response.headers.set('Content-Disposition', `attachment; filename="${filename}"`);
+      response.headers.set('Cache-Control', 'no-cache');
+
+      return response;
+
+    } catch (backendError) {
+      console.error('Backend download failed:', backendError);
+
+      // Fallback for demo purposes
+      return NextResponse.json({
+        message: "Backend unavailable - file download would start here",
+        conversionId,
+        note: "In production, this would stream the converted file from backend"
+      });
+    }
 
   } catch (error) {
     console.error("Guest download error:", error);

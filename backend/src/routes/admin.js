@@ -31,6 +31,49 @@ const updateSettingsValidation = [
     .withMessage('Settings must be an object')
 ];
 
+const updateLimitConfigValidation = [
+  body('maxFilesPerConversion')
+    .optional()
+    .isInt({ min: 1, max: 100 })
+    .withMessage('Max files per conversion must be between 1 and 100'),
+  body('maxFileSize')
+    .optional()
+    .isInt({ min: 1024, max: 1024 * 1024 * 1024 })
+    .withMessage('Max file size must be between 1KB and 1GB'),
+  body('maxDailyConversions')
+    .optional()
+    .isInt({ min: 1, max: 10000 })
+    .withMessage('Max daily conversions must be between 1 and 10000'),
+  body('maxMonthlyConversions')
+    .optional()
+    .custom((value) => value === null || (Number.isInteger(value) && value >= 1))
+    .withMessage('Max monthly conversions must be null or integer >= 1'),
+  body('allowedFormats')
+    .optional()
+    .isArray()
+    .withMessage('Allowed formats must be an array'),
+  body('maxConcurrentJobs')
+    .optional()
+    .isInt({ min: 1, max: 50 })
+    .withMessage('Max concurrent jobs must be between 1 and 50'),
+  body('priorityLevel')
+    .optional()
+    .isInt({ min: 0, max: 10 })
+    .withMessage('Priority level must be between 0 and 10'),
+  body('rateLimitPerMinute')
+    .optional()
+    .isInt({ min: 1, max: 1000 })
+    .withMessage('Rate limit per minute must be between 1 and 1000'),
+  body('rateLimitPerHour')
+    .optional()
+    .isInt({ min: 1, max: 10000 })
+    .withMessage('Rate limit per hour must be between 1 and 10000'),
+  body('isActive')
+    .optional()
+    .isBoolean()
+    .withMessage('isActive must be a boolean')
+];
+
 /**
  * @swagger
  * /api/admin/stats:
@@ -416,5 +459,10 @@ router.post('/queue/clear-failed', adminController.clearFailedJobs);
 
 // System logs
 router.get('/logs', adminController.getLogs);
+
+// Limit configurations management
+router.get('/limit-configs', adminController.getLimitConfigurations);
+router.put('/limit-configs/:subscriptionType/:userType', updateLimitConfigValidation, adminController.updateLimitConfiguration);
+router.post('/limit-configs/initialize', adminController.initializeLimitConfigs);
 
 module.exports = router;

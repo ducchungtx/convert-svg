@@ -18,10 +18,10 @@ export default function HomePage() {
             </div>
             <div className="flex items-center space-x-4">
               <Link href="/login">
-                <Button variant="ghost">Sign In</Button>
+                <Button variant="ghost" className="text-blue-600 hover:text-blue-800">Sign In</Button>
               </Link>
               <Link href="/register">
-                <Button>Get Started</Button>
+                <Button className="bg-gray-300 hover:bg-gray-200!">Get Started</Button>
               </Link>
             </div>
           </div>
@@ -46,7 +46,7 @@ export default function HomePage() {
               </Button>
             </Link>
             <Link href="/register">
-              <Button variant="outline" size="lg" className="px-8 py-3 border-2 border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300">
+              <Button variant="outline" size="lg" className="px-8 py-3 border-2 border-blue-600 text-blue-600 hover:bg-blue-600! hover:text-white font-semibold shadow-md hover:shadow-lg transition-all duration-300">
                 Full Access
               </Button>
             </Link>
@@ -149,7 +149,7 @@ export default function HomePage() {
               </div>
               <div className="mt-6">
                 <Link href="/register">
-                  <Button variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-600 hover:text-white">
+                  <Button variant="outline" className="w-full border-blue-600 text-blue-600 hover:bg-blue-600! hover:text-white">
                     Upgrade to Full Access
                   </Button>
                 </Link>

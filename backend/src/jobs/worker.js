@@ -2,7 +2,8 @@ const { Worker } = require('bullmq');
 const { PrismaClient } = require('@prisma/client');
 const redis = require('../utils/redis');
 const logger = require('../utils/logger');
-const conversionService = require('../services/conversionService');
+// Use simple conversion service to avoid canvas dependency
+const conversionService = require('../services/simpleConversionService');
 
 const prisma = new PrismaClient();
 

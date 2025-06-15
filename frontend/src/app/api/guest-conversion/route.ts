@@ -29,7 +29,42 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    // For demo purposes, simulate conversion progress
+    // Try to get status from backend first
+    try {
+      const backendResponse = await fetch(`${process.env.BACKEND_URL || 'http://localhost:3001'}/api/conversion/status/${conversionId}`, {
+        method: 'GET',
+        headers: {
+          'Content-Type': 'application/json',
+        }
+      });
+
+      if (backendResponse.ok) {
+        const backendData = await backendResponse.json();
+
+        if (backendData.success && backendData.data.conversion) {
+          const conversion = backendData.data.conversion;
+
+          // Map backend status to frontend format
+          return NextResponse.json({
+            id: conversion.id.toString(),
+            status: conversion.status,
+            progress: conversion.progress || (conversion.status === 'COMPLETED' ? 100 : conversion.status === 'PROCESSING' ? 50 : 0),
+            originalName: conversion.originalFilename,
+            targetFormat: conversion.toFormat.toLowerCase(),
+            fileSize: conversion.fileSize,
+            createdAt: conversion.createdAt,
+            completedAt: conversion.completedAt,
+            downloadUrl: conversion.status === 'COMPLETED' ? `/api/guest-download/${conversion.id}` : undefined,
+            outputSize: conversion.outputFileSize,
+            isGuest: !conversion.userId // Guest if no userId
+          });
+        }
+      }
+    } catch (backendError) {
+      console.warn('Backend status check failed, falling back to mock:', backendError);
+    }
+
+    // Fallback to mock data for demo purposes
     const conversion = mockConversions.get(conversionId) || {
       id: conversionId,
       status: "PROCESSING",

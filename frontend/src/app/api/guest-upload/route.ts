@@ -8,6 +8,8 @@ const ALLOWED_OUTPUT_FORMATS = ["png", "jpg", "pdf"]; // Limited formats for gue
 // In-memory storage for guest usage tracking (in production, use Redis or database)
 const guestUsage = new Map<string, { count: number; date: string }>();
 
+const BACKEND_URL = process.env.BACKEND_URL || 'http://localhost:3001';
+
 function getClientIP(request: NextRequest): string {
   // Get client IP for rate limiting
   const forwarded = request.headers.get("x-forwarded-for");
@@ -95,38 +97,63 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // TODO: In a real application, you would:
-    // 1. Save files to temporary storage
-    // 2. Queue conversion jobs
-    // 3. Return job IDs for tracking
+    // Process files through backend
+    const conversions = [];
 
-    // For now, simulate the conversion process
-    const conversions = files.map((file, index) => ({
-      id: `guest_${Date.now()}_${index}`,
-      originalName: file.name,
-      targetFormat,
-      status: "PROCESSING",
-      progress: 0,
-      fileSize: file.size,
-      quality,
-      createdAt: new Date().toISOString(),
-      isGuest: true
-    }));
+    for (const file of files) {
+      try {
+        // Create FormData for backend request
+        const backendFormData = new FormData();
+        backendFormData.append('file', file);
+        backendFormData.append('targetFormat', targetFormat.toUpperCase());
+        backendFormData.append('quality', quality.toString());
+
+        // Call backend conversion API
+        const backendResponse = await fetch(`${BACKEND_URL}/api/conversion/convert`, {
+          method: 'POST',
+          body: backendFormData,
+          headers: {
+            'X-Forwarded-For': clientIP,
+            'X-Guest-Conversion': 'true'
+          }
+        });
+
+        if (!backendResponse.ok) {
+          const errorData = await backendResponse.json().catch(() => ({}));
+          throw new Error(errorData.message || `Backend conversion failed for ${file.name}`);
+        }
+
+        const backendResult = await backendResponse.json();
+
+        conversions.push({
+          id: backendResult.data.conversionId,
+          originalName: file.name,
+          targetFormat,
+          status: "PROCESSING",
+          progress: 0,
+          fileSize: file.size,
+          quality,
+          createdAt: new Date().toISOString(),
+          isGuest: true
+        });
+
+      } catch (error) {
+        console.error(`Error processing file ${file.name}:`, error);
+        return NextResponse.json(
+          { error: `Failed to process file: ${file.name}. ${error instanceof Error ? error.message : 'Unknown error'}` },
+          { status: 500 }
+        );
+      }
+    }
 
     // Increment guest usage
     incrementGuestUsage(clientIP);
-
-    // Simulate processing delay
-    setTimeout(() => {
-      // In a real app, this would be handled by a background job
-      console.log(`Processing ${files.length} files for guest user`);
-    }, 1000);
 
     return NextResponse.json({
       success: true,
       conversions,
       message: `Started processing ${files.length} file(s)`,
-      remainingConversions: 4 // 5 - 1 (current batch)
+      remainingConversions: Math.max(0, 5 - (guestUsage.get(clientIP)?.count || 0))
     });
 
   } catch (error) {
